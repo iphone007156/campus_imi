@@ -1,0 +1,30 @@
+workflows:
+  ios-release:
+    name: iOS Release Build
+    max_build_duration: 60
+    environment:
+      groups:
+        - app_store_credentials  # если используешь Automatic signing, сюда нужен App Store Connect API key
+      xcode_version: default
+      flutter_channel: stable
+    scripts:
+      - name: Get Flutter packages
+        script: flutter pub get
+      - name: Flutter build iOS
+        script: flutter build ios --release --no-codesign
+      - name: Build IPA with Xcode
+        script: |
+          xcodebuild -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath build/ios/archive/Runner.xcarchive \
+            CODE_SIGNING_ALLOWED=NO
+      - name: Export IPA
+        script: |
+          xcodebuild -exportArchive \
+            -archivePath build/ios/archive/Runner.xcarchive \
+            -exportOptionsPlist exportOptions.plist \
+            -exportPath build/ios/ipa
+    artifacts:
+      - build/ios/ipa/*.ipa
