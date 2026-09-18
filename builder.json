@@ -1,0 +1,22 @@
+{
+  "project": "campus_imi",
+  "platform": "ios",
+  "github": {
+    "owner": "iphone007156",
+    "repo": "campus_imi"
+  },
+  "provider": "github",
+  "codemagic": {},
+  "bitrise": {},
+  "ios": {
+    "path": "ios",
+    "bundleId": "com.example.campusImi"
+  },
+  "flutter": {
+    "version": "3.44.1",
+    "watch": {}
+  },
+  "reactNative": {},
+  "kmp": {},
+  "mobai": {}
+}
