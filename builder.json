@@ -1,5 +1,5 @@
 {
-  "project": "campus_imi",
+  "project": "builder ios build",
   "platform": "ios",
   "github": {
     "owner": "iphone007156",
@@ -18,5 +18,11 @@
   },
   "reactNative": {},
   "kmp": {},
-  "mobai": {}
+  "mobai": {},
+  "profiles": {
+    "preview": {
+      "configuration": "Release",
+      "distribution": "internal"
+    }
+  }
 }

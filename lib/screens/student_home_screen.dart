@@ -205,12 +205,10 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
           _userPhotoBase64 = data['photoBase64'];
           _isLoading = false;
         });
-        print('🔄 Данные обновлены автоматически!');
       } else {
         setState(() => _isLoading = false);
       }
     }, onError: (error) {
-      print('❌ Ошибка загрузки данных: $error');
       setState(() => _isLoading = false);
     });
   }
@@ -224,14 +222,15 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
-            expandedHeight: 180,
+            // ✅ Высота шапки — оптимальная
+            expandedHeight: 230,
             pinned: true,
             backgroundColor: AppTheme.primaryNavy,
-            leading: IconButton(
-              icon: const Icon(Icons.menu, size: 22),
-              onPressed: () {},
-            ),
+            automaticallyImplyLeading: false,
             flexibleSpace: FlexibleSpaceBar(
+              // ✅ Заголовок опущен ниже
+              centerTitle: true,
+              titlePadding: const EdgeInsets.only(left: 16, bottom: 16),
               background: ProfileHeader(
                 userName: _userName,
                 userGroup: _userGroup,
@@ -245,6 +244,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
               IconButton(
                 icon: const Icon(Icons.logout, color: Colors.white70, size: 20),
                 onPressed: () => _showLogoutDialog(context),
+                tooltip: 'Выйти',
               ),
               const SizedBox(width: 8),
             ],
@@ -353,7 +353,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
   }
 }
 
-// --- КОМПОНЕНТ ШАПКИ ПРОФИЛЯ ---
+// --- ШАПКА ПРОФИЛЯ ---
 
 class ProfileHeader extends StatelessWidget {
   final String userName;
@@ -374,7 +374,10 @@ class ProfileHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 56, 20, 20),
+      // ✅ ОТРЕГУЛИРОВАЛИ ОТСТУПЫ:
+      // top: 100 — опустили аватарку ниже от заголовка "Главное меню"
+      // bottom: 20 — убрали пустое место снизу
+      padding: const EdgeInsets.fromLTRB(20, 100, 20, 20),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -383,16 +386,18 @@ class ProfileHeader extends StatelessWidget {
         ),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          // Аватар — слева
           Container(
-            width: 64,
-            height: 64,
+            width: 72,
+            height: 72,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: Colors.white.withValues(alpha: 0.15),
               border: Border.all(
-                color: Colors.white.withValues(alpha: 0.4),
-                width: 2,
+                color: Colors.white.withValues(alpha: 0.5),
+                width: 2.5,
               ),
               image: photoProvider != null
                   ? DecorationImage(
@@ -404,10 +409,12 @@ class ProfileHeader extends StatelessWidget {
             child: isLoading
                 ? const CircularProgressIndicator(color: Colors.white)
                 : (photoProvider == null
-                ? const Icon(Icons.person, color: Colors.white, size: 34)
+                ? const Icon(Icons.person, color: Colors.white, size: 38)
                 : null),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 16),
+
+          // Информация
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -417,15 +424,16 @@ class ProfileHeader extends StatelessWidget {
                   isLoading ? 'Загрузка...' : userName,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 17,
+                    fontSize: 18,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 5),
+                const SizedBox(height: 6),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.18),
+                    color: Colors.white.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
@@ -433,15 +441,15 @@ class ProfileHeader extends StatelessWidget {
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 12,
-                      fontWeight: FontWeight.w500,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 4),
                 Text(
                   isLoading ? '' : userInstitute,
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.55),
+                    color: Colors.white.withValues(alpha: 0.65),
                     fontSize: 11,
                   ),
                 ),

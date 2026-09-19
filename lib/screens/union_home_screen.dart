@@ -2,19 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:convert';
-import 'dart:typed_data';
 import '../theme/app_theme.dart';
 import '../models/event_model.dart';
+import '../models/user_model.dart';
 import '../services/event_service.dart';
+import '../services/user_service.dart';
 import 'add_event_screen.dart';
 import 'event_detail_screen.dart';
 
-// --- Функция для декодирования Base64 ---
 ImageProvider? getImageFromBase64(String? base64String) {
   if (base64String == null || base64String.isEmpty) return null;
   try {
-    final bytes = base64Decode(base64String);
-    return MemoryImage(bytes);
+    return MemoryImage(base64Decode(base64String));
   } catch (e) {
     return null;
   }
@@ -29,41 +28,51 @@ class UnionHomeScreen extends StatefulWidget {
 
 class _UnionHomeScreenState extends State<UnionHomeScreen> {
   final EventService _eventService = EventService();
+  final UserService _userService = UserService();
+
   int _totalPoints = 0;
   bool _isLoadingPoints = true;
   String _userName = 'Активист';
   String _userGroup = 'Группа';
-  String _userPosition = 'Активист';
+  String _userPosition = 'Студент';
   String? _userPhotoBase64;
+  UserRole _currentRole = UserRole.student;
 
   @override
   void initState() {
     super.initState();
-    _listenToUserData();
+    _loadUserData();
     _loadUserPoints();
+    _loadUserRole();
   }
 
-  void _listenToUserData() {
+  Future<void> _loadUserData() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .snapshots()
-        .listen((snapshot) {
-      if (snapshot.exists) {
-        final data = snapshot.data() as Map<String, dynamic>;
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      if (doc.exists && mounted) {
+        final data = doc.data()!;
         setState(() {
           _userName = data['name'] ?? 'Активист';
           _userGroup = data['group'] ?? 'Группа';
-          _userPosition = data['unionPosition'] ?? 'Активист';
+          _userPosition = data['unionPosition'] ?? 'Студент';
           _userPhotoBase64 = data['photoBase64'];
         });
       }
-    }, onError: (error) {
-      debugPrint('Ошибка: $error');
-    });
+    } catch (e) {
+      debugPrint('Ошибка: $e');
+    }
+  }
+
+  Future<void> _loadUserRole() async {
+    final role = await _userService.getCurrentUserRole();
+    if (mounted) setState(() => _currentRole = role);
   }
 
   Future<void> _loadUserPoints() async {
@@ -79,17 +88,19 @@ class _UnionHomeScreenState extends State<UnionHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final photoProvider = getImageFromBase64(_userPhotoBase64);
+    final canCreate = _currentRole.canCreateEvents;
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundGray,
       appBar: AppBar(
         title: const Text('Профсоюз'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.add_circle_outline),
-            onPressed: () => _navigateToAddEvent(),
-            tooltip: 'Создать мероприятие',
-          ),
+          if (canCreate)
+            IconButton(
+              icon: const Icon(Icons.add_circle_outline),
+              onPressed: () => _navigateToAddEvent(),
+              tooltip: 'Создать мероприятие',
+            ),
         ],
       ),
       body: CustomScrollView(
@@ -102,6 +113,7 @@ class _UnionHomeScreenState extends State<UnionHomeScreen> {
               points: _totalPoints,
               isLoading: _isLoadingPoints,
               photoProvider: photoProvider,
+              role: _currentRole,
             ),
           ),
           const SliverPadding(
@@ -126,25 +138,9 @@ class _UnionHomeScreenState extends State<UnionHomeScreen> {
                   child: Center(child: CircularProgressIndicator()),
                 );
               }
-
               if (snapshot.hasError) {
                 return SliverFillRemaining(
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.error_outline,
-                            size: 48, color: Colors.red),
-                        const SizedBox(height: 16),
-                        Text('Ошибка: ${snapshot.error}'),
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: () => setState(() {}),
-                          child: const Text('Повторить'),
-                        ),
-                      ],
-                    ),
-                  ),
+                  child: Center(child: Text('Ошибка: ${snapshot.error}')),
                 );
               }
 
@@ -158,21 +154,9 @@ class _UnionHomeScreenState extends State<UnionHomeScreen> {
                         Icon(Icons.event_busy_outlined,
                             size: 48, color: AppTheme.textMuted),
                         SizedBox(height: 16),
-                        Text(
-                          'Мероприятий пока нет',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: AppTheme.textMuted,
-                          ),
-                        ),
-                        SizedBox(height: 8),
-                        Text(
-                          'Станьте первым организатором!',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: AppTheme.textMuted,
-                          ),
-                        ),
+                        Text('Мероприятий пока нет',
+                            style: TextStyle(
+                                fontSize: 16, color: AppTheme.textMuted)),
                       ],
                     ),
                   ),
@@ -202,23 +186,19 @@ class _UnionHomeScreenState extends State<UnionHomeScreen> {
   void _navigateToAddEvent() {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => const AddEventScreen(),
-      ),
+      MaterialPageRoute(builder: (_) => const AddEventScreen()),
     ).then((_) => _loadUserPoints());
   }
 
   void _navigateToEventDetail(Event event) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => EventDetailScreen(event: event),
-      ),
+      MaterialPageRoute(builder: (_) => EventDetailScreen(event: event)),
     ).then((_) => _loadUserPoints());
   }
 }
 
-// --- Карточка пользователя ---
+// ===== КАРТОЧКА ПОЛЬЗОВАТЕЛЯ =====
 class _UserProfileCard extends StatelessWidget {
   final String userName;
   final String userGroup;
@@ -226,6 +206,7 @@ class _UserProfileCard extends StatelessWidget {
   final int points;
   final bool isLoading;
   final ImageProvider? photoProvider;
+  final UserRole role;
 
   const _UserProfileCard({
     required this.userName,
@@ -233,8 +214,20 @@ class _UserProfileCard extends StatelessWidget {
     required this.userPosition,
     required this.points,
     required this.isLoading,
+    required this.role,
     this.photoProvider,
   });
+
+  Color get _roleColor {
+    switch (role) {
+      case UserRole.admin:
+        return Colors.red;
+      case UserRole.activist:
+        return AppTheme.gold;
+      default:
+        return Colors.white70;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -258,22 +251,13 @@ class _UserProfileCard extends StatelessWidget {
               shape: BoxShape.circle,
               color: Colors.white.withValues(alpha: 0.2),
               border: Border.all(
-                color: Colors.white.withValues(alpha: 0.3),
-                width: 2,
-              ),
+                  color: Colors.white.withValues(alpha: 0.3), width: 2),
               image: photoProvider != null
-                  ? DecorationImage(
-                image: photoProvider!,
-                fit: BoxFit.cover,
-              )
+                  ? DecorationImage(image: photoProvider!, fit: BoxFit.cover)
                   : null,
             ),
             child: photoProvider == null
-                ? const Icon(
-              Icons.person,
-              color: Colors.white,
-              size: 36,
-            )
+                ? const Icon(Icons.person, color: Colors.white, size: 36)
                 : null,
           ),
           const SizedBox(width: 16),
@@ -292,49 +276,63 @@ class _UserProfileCard extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   '$userGroup • $userPosition',
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 13,
-                  ),
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
                 ),
                 const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.star,
-                        color: AppTheme.gold,
-                        size: 16,
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      const SizedBox(width: 4),
-                      isLoading
-                          ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.star,
+                              color: AppTheme.gold, size: 16),
+                          const SizedBox(width: 4),
+                          isLoading
+                              ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white),
+                          )
+                              : Text(
+                            '$points баллов',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    if (role != UserRole.student)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: _roleColor.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                              color: _roleColor.withValues(alpha: 0.5)),
                         ),
-                      )
-                          : Text(
-                        '$points баллов',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
+                        child: Text(
+                          role.label,
+                          style: TextStyle(
+                            color: _roleColor,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
-                    ],
-                  ),
+                  ],
                 ),
               ],
             ),
@@ -345,15 +343,62 @@ class _UserProfileCard extends StatelessWidget {
   }
 }
 
-// --- Карточка мероприятия ---
+// ===== КАРТОЧКА МЕРОПРИЯТИЯ =====
 class _EventCard extends StatelessWidget {
   final Event event;
   final VoidCallback onTap;
 
-  const _EventCard({
-    required this.event,
-    required this.onTap,
-  });
+  const _EventCard({required this.event, required this.onTap});
+
+  Widget _buildEventImage() {
+    // 1. URL
+    if (event.imageUrl.isNotEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Image.network(
+          event.imageUrl,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => const Icon(
+            Icons.event,
+            color: AppTheme.accentBlue,
+            size: 28,
+          ),
+        ),
+      );
+    }
+
+    // 2. Base64
+    if (event.imageBase64.isNotEmpty) {
+      try {
+        final bytes = base64Decode(event.imageBase64);
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: Image.memory(
+            bytes,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => const Icon(
+              Icons.event,
+              color: AppTheme.accentBlue,
+              size: 28,
+            ),
+          ),
+        );
+      } catch (e) {
+        return const Icon(
+          Icons.event,
+          color: AppTheme.accentBlue,
+          size: 28,
+        );
+      }
+    }
+
+    // 3. Иконка
+    return const Icon(
+      Icons.event,
+      color: AppTheme.accentBlue,
+      size: 28,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -374,7 +419,7 @@ class _EventCard extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Иконка/изображение
+                // Изображение
                 Container(
                   width: 50,
                   height: 50,
@@ -382,38 +427,45 @@ class _EventCard extends StatelessWidget {
                     color: AppTheme.lightBlue,
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: event.imageUrl.isNotEmpty
-                      ? ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: Image.network(
-                      event.imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const Icon(
-                        Icons.event,
-                        color: AppTheme.accentBlue,
-                        size: 28,
-                      ),
-                    ),
-                  )
-                      : const Icon(
-                    Icons.event,
-                    color: AppTheme.accentBlue,
-                    size: 28,
-                  ),
+                  child: _buildEventImage(),
                 ),
                 const SizedBox(width: 12),
+
                 // Информация
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        event.title,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.textDark,
-                        ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              event.title,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: AppTheme.textDark,
+                              ),
+                            ),
+                          ),
+                          if (event.finalized)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.green.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text(
+                                'Завершено',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  color: Colors.green,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                       const SizedBox(height: 4),
                       Row(
@@ -424,20 +476,16 @@ class _EventCard extends StatelessWidget {
                           Text(
                             event.date,
                             style: const TextStyle(
-                              fontSize: 12,
-                              color: AppTheme.textMuted,
-                            ),
+                                fontSize: 12, color: AppTheme.textMuted),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 10),
                           const Icon(Icons.access_time,
                               size: 12, color: AppTheme.textMuted),
                           const SizedBox(width: 4),
                           Text(
                             event.time,
                             style: const TextStyle(
-                              fontSize: 12,
-                              color: AppTheme.textMuted,
-                            ),
+                                fontSize: 12, color: AppTheme.textMuted),
                           ),
                         ],
                       ),
@@ -451,9 +499,7 @@ class _EventCard extends StatelessWidget {
                             child: Text(
                               event.location,
                               style: const TextStyle(
-                                fontSize: 12,
-                                color: AppTheme.textMuted,
-                              ),
+                                  fontSize: 12, color: AppTheme.textMuted),
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
@@ -462,6 +508,7 @@ class _EventCard extends StatelessWidget {
                     ],
                   ),
                 ),
+
                 // Баллы
                 Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -494,9 +541,7 @@ class _EventCard extends StatelessWidget {
                     Text(
                       '${event.participants.length} участ.',
                       style: const TextStyle(
-                        fontSize: 10,
-                        color: AppTheme.textMuted,
-                      ),
+                          fontSize: 10, color: AppTheme.textMuted),
                     ),
                   ],
                 ),

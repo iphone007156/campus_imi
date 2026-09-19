@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import 'institute_screen.dart';
 import 'news_screen.dart';
+import 'profkom_screen.dart';
 
 class GuestScreen extends StatelessWidget {
   const GuestScreen({super.key});
@@ -37,35 +38,74 @@ class GuestScreen extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             child: Column(
               children: [
+                // ===== ИМИ СВФУ =====
                 _GuestTile(
                   icon: Icons.account_balance_outlined,
                   label: 'ИМИ СВФУ',
                   subtitle: 'Информация об институте',
                   onTap: () => Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const InstituteScreen()),
+                    MaterialPageRoute(
+                        builder: (_) => const InstituteScreen()),
                   ),
                 ),
-                const Divider(height: 1, indent: 66, color: AppTheme.divider),
+                const Divider(
+                    height: 1, indent: 66, color: AppTheme.divider),
+
+                // ===== НОВОСТИ =====
                 _GuestTile(
                   icon: Icons.newspaper_outlined,
                   label: 'Новости',
-                  subtitle: 'Открытые новости',
+                  subtitle: 'Открытые новости института',
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => const NewsScreen()),
                   ),
                 ),
-                const Divider(height: 1, indent: 66, color: AppTheme.divider),
+                const Divider(
+                    height: 1, indent: 66, color: AppTheme.divider),
+
+                // ===== ПРОФСОЮЗ СВФУ =====
+                _GuestTile(
+                  icon: Icons.people_outline,
+                  label: 'Профсоюз СВФУ',
+                  subtitle: 'ППОС СВФУ — 10 000+ студентов',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ProfkomScreen()),
+                  ),
+                ),
+                const Divider(
+                    height: 1, indent: 66, color: AppTheme.divider),
+
+                // ===== КАРТА КАМПУСА =====
                 _GuestTile(
                   icon: Icons.map_outlined,
                   label: 'Карта кампуса',
                   subtitle: 'Схема корпусов',
-                  onTap: () {},
+                  onTap: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Раздел в разработке'),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  },
                 ),
               ],
             ),
           ),
+          const SizedBox(height: 24),
+          Center(
+            child: Text(
+              '© СВФУ им. М.К. Аммосова',
+              style: TextStyle(
+                fontSize: 11,
+                color: AppTheme.textMuted.withValues(alpha: 0.6),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
         ],
       ),
     );
@@ -86,12 +126,14 @@ class _GuestBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.info_outline, color: AppTheme.accentBlue, size: 24),
+          const Icon(Icons.info_outline,
+              color: AppTheme.accentBlue, size: 24),
           const SizedBox(width: 12),
           const Expanded(
             child: Text(
               'Вы в режиме гостя. Часть разделов доступна только авторизованным студентам.',
-              style: TextStyle(fontSize: 13, color: AppTheme.textDark, height: 1.4),
+              style: TextStyle(
+                  fontSize: 13, color: AppTheme.textDark, height: 1.4),
             ),
           ),
         ],

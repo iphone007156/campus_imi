@@ -28,7 +28,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   }
 
   Future<void> _checkParticipation() async {
-    final isParticipant = await _eventService.isUserParticipant(widget.event.id);
+    final isParticipant =
+    await _eventService.isUserParticipant(widget.event.id);
     setState(() {
       _isParticipant = isParticipant;
       _isLoading = false;
@@ -43,6 +44,18 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   }
 
   Future<void> _toggleParticipation() async {
+    // ✅ Проверка окончания
+    if (widget.event.isFinished) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('❌ Мероприятие завершено. Запись закрыта.'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
@@ -59,9 +72,12 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         await _eventService.joinEvent(widget.event.id);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✅ Вы записались! +${widget.event.points} баллов 🎉'),
+            content: Text(
+              '✅ Вы записались! Баллы (+${widget.event.points}) начислятся после посещения 🎉',
+            ),
             backgroundColor: Colors.green,
             behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 3),
           ),
         );
       }
@@ -70,7 +86,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('❌ Ошибка: $e'),
+          content: Text('❌ $e'),
           backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
         ),
@@ -82,17 +98,17 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isFinished = widget.event.isFinished;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.event.title),
         actions: [
-          // Кнопка удаления мероприятия (только для админа)
           if (_isAdmin)
             PopupMenuButton<String>(
               onSelected: (value) {
                 if (value == 'delete') _showDeleteEventDialog();
               },
-              icon: const Icon(Icons.more_vert),
               itemBuilder: (context) => const [
                 PopupMenuItem(
                   value: 'delete',
@@ -100,7 +116,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                     children: [
                       Icon(Icons.delete, color: Colors.red, size: 20),
                       SizedBox(width: 8),
-                      Text('Удалить мероприятие', style: TextStyle(color: Colors.red)),
+                      Text('Удалить мероприятие',
+                          style: TextStyle(color: Colors.red)),
                     ],
                   ),
                 ),
@@ -126,7 +143,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   errorBuilder: (_, __, ___) => Container(
                     height: 200,
                     color: AppTheme.lightBlue,
-                    child: const Icon(Icons.image_not_supported, size: 48, color: AppTheme.textMuted),
+                    child: const Icon(Icons.image_not_supported,
+                        size: 48, color: AppTheme.textMuted),
                   ),
                 ),
               ),
@@ -157,15 +175,17 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                         ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
-                          color: AppTheme.gold.withOpacity(0.1),
+                          color: AppTheme.gold.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(color: AppTheme.gold),
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.star, color: AppTheme.gold, size: 18),
+                            const Icon(Icons.star,
+                                color: AppTheme.gold, size: 18),
                             const SizedBox(width: 4),
                             Text(
                               '+${widget.event.points}',
@@ -181,24 +201,76 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  _InfoRow(icon: Icons.calendar_today, text: widget.event.date),
+                  _InfoRow(
+                      icon: Icons.calendar_today, text: widget.event.date),
                   const SizedBox(height: 8),
                   _InfoRow(icon: Icons.access_time, text: widget.event.time),
                   const SizedBox(height: 8),
-                  _InfoRow(icon: Icons.location_on, text: widget.event.location),
+                  _InfoRow(
+                      icon: Icons.location_on, text: widget.event.location),
                   const SizedBox(height: 8),
-                  _InfoRow(icon: Icons.person, text: 'Организатор: ${widget.event.organizer}'),
+                  _InfoRow(
+                    icon: Icons.person,
+                    text: 'Организатор: ${widget.event.organizer}',
+                  ),
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      const Icon(Icons.group, size: 16, color: AppTheme.textMuted),
+                      const Icon(Icons.group,
+                          size: 16, color: AppTheme.textMuted),
                       const SizedBox(width: 8),
                       Text(
-                        'Участников: ${widget.event.participants.length}',
-                        style: const TextStyle(fontSize: 14, color: AppTheme.textDark),
+                        'Записались: ${widget.event.participants.length}',
+                        style: const TextStyle(
+                            fontSize: 14, color: AppTheme.textDark),
                       ),
                     ],
                   ),
+                  if (widget.event.attended.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const Icon(Icons.check_circle,
+                            size: 16, color: Colors.green),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Пришли: ${widget.event.attended.length}',
+                          style: const TextStyle(
+                              fontSize: 14, color: Colors.green),
+                        ),
+                      ],
+                    ),
+                  ],
+                  // Статус "завершено"
+                  if (isFinished) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                            color: Colors.green.withValues(alpha: 0.3)),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.check_circle,
+                              color: Colors.green, size: 20),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Мероприятие завершено',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.green,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -237,7 +309,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             ),
             const SizedBox(height: 24),
 
-            // Кнопка "Посмотреть участников" (для всех)
+            // Кнопка "Посмотреть участников"
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
@@ -247,7 +319,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => EventParticipantsScreen(event: widget.event),
+                      builder: (_) => EventParticipantsScreen(
+                          event: widget.event),
                     ),
                   );
                 },
@@ -255,7 +328,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                 label: Text(
                   widget.event.participants.isEmpty
                       ? 'Нет участников'
-                      : 'Посмотреть всех участников (${widget.event.participants.length})',
+                      : 'Посмотреть участников (${widget.event.participants.length})',
                 ),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 14),
@@ -272,14 +345,18 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             ),
             const SizedBox(height: 12),
 
-            // Кнопка записи/отписки (для студентов, не для админа)
+            // Кнопка записи/отписки (только для студентов)
             if (!_isAdmin)
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _isLoading ? null : _toggleParticipation,
+                  onPressed: (isFinished || _isLoading)
+                      ? null
+                      : _toggleParticipation,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _isParticipant ? Colors.red : AppTheme.primaryNavy,
+                    backgroundColor: isFinished
+                        ? Colors.grey
+                        : (_isParticipant ? Colors.red : AppTheme.primaryNavy),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
@@ -289,7 +366,11 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   child: _isLoading
                       ? const CircularProgressIndicator(color: Colors.white)
                       : Text(
-                    _isParticipant ? 'Отписаться' : 'Записаться на мероприятие',
+                    isFinished
+                        ? 'Мероприятие завершено'
+                        : (_isParticipant
+                        ? 'Отписаться'
+                        : 'Записаться на мероприятие'),
                     style: const TextStyle(fontSize: 16),
                   ),
                 ),
@@ -300,13 +381,13 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     );
   }
 
-  // Диалог удаления мероприятия
   void _showDeleteEventDialog() {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Удалить мероприятие'),
-        content: const Text('Вы уверены, что хотите удалить это мероприятие? Это действие нельзя отменить.'),
+        content: const Text(
+            'Вы уверены, что хотите удалить это мероприятие?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -317,17 +398,16 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
               try {
                 await _eventService.deleteEvent(widget.event.id);
                 if (mounted) {
-                  Navigator.pop(context); // Закрыть диалог
-                  Navigator.pop(context, true); // Закрыть экран деталей
+                  Navigator.pop(context);
+                  Navigator.pop(context, true);
                 }
               } catch (e) {
                 if (mounted) {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('❌ Ошибка удаления: $e'),
+                      content: Text('Ошибка: $e'),
                       backgroundColor: Colors.red,
-                      behavior: SnackBarBehavior.floating,
                     ),
                   );
                 }
@@ -342,7 +422,6 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   }
 }
 
-// --- Вспомогательный виджет ---
 class _InfoRow extends StatelessWidget {
   final IconData icon;
   final String text;

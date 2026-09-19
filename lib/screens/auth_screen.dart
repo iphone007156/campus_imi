@@ -2,6 +2,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../utils/validators.dart';
+import 'register_screen.dart';
+import 'forgot_password_screen.dart';   // ← ИМПОРТ
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -28,11 +30,24 @@ class _AuthScreenState extends State<AuthScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
+
     try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
+      final credential = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
+
+      final user = credential.user;
+
+      // ПРОВЕРКА: подтверждён ли email
+      if (user != null && !user.emailVerified) {
+        await FirebaseAuth.instance.signOut();
+        if (mounted) {
+          _showEmailNotVerifiedDialog(user);
+        }
+        return;
+      }
+
       if (mounted) {
         Navigator.of(context).popUntil((route) => route.isFirst);
       }
@@ -49,10 +64,13 @@ class _AuthScreenState extends State<AuthScreen> {
           message = 'Некорректный email';
           break;
         case 'user-disabled':
-          message = 'Аккаунт отключен';
+          message = 'Аккаунт отключён';
           break;
         case 'too-many-requests':
           message = 'Слишком много попыток. Попробуйте позже';
+          break;
+        case 'invalid-credential':
+          message = 'Неверный email или пароль';
           break;
       }
 
@@ -80,6 +98,59 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
+  void _showEmailNotVerifiedDialog(User user) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_outlined, color: Colors.orange),
+            SizedBox(width: 8),
+            Text('Email не подтверждён'),
+          ],
+        ),
+        content: const Text(
+          'Вы не подтвердили свой email. Проверьте почту и перейдите по ссылке из письма.',
+          style: TextStyle(height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Отмена'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              try {
+                await user.sendEmailVerification();
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('✅ Письмо отправлено повторно'),
+                      backgroundColor: Colors.green,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Ошибка: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Отправить снова'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -90,6 +161,7 @@ class _AuthScreenState extends State<AuthScreen> {
           onPressed: () => Navigator.pop(context),
         ),
       ),
+      backgroundColor: AppTheme.backgroundGray,
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
         child: Form(
@@ -120,6 +192,7 @@ class _AuthScreenState extends State<AuthScreen> {
                 style: TextStyle(color: AppTheme.textMuted),
               ),
               const SizedBox(height: 40),
+
               TextFormField(
                 controller: _emailController,
                 enabled: !_isLoading,
@@ -132,6 +205,7 @@ class _AuthScreenState extends State<AuthScreen> {
                 validator: Validators.validateEmail,
               ),
               const SizedBox(height: 16),
+
               TextFormField(
                 controller: _passwordController,
                 enabled: !_isLoading,
@@ -146,12 +220,38 @@ class _AuthScreenState extends State<AuthScreen> {
                           ? Icons.visibility_off
                           : Icons.visibility,
                     ),
-                    onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                    onPressed: () => setState(
+                            () => _obscurePassword = !_obscurePassword),
                   ),
                 ),
                 validator: Validators.validatePassword,
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 8),
+
+              // ✅ ССЫЛКА "Забыли пароль?"
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: _isLoading
+                      ? null
+                      : () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                      const ForgotPasswordScreen(),
+                    ),
+                  ),
+                  child: const Text(
+                    'Забыли пароль?',
+                    style: TextStyle(
+                      color: AppTheme.accentBlue,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
               ElevatedButton(
                 onPressed: _isLoading ? null : _signIn,
                 style: ElevatedButton.styleFrom(
@@ -175,6 +275,34 @@ class _AuthScreenState extends State<AuthScreen> {
                   'Войти',
                   style: TextStyle(fontSize: 16),
                 ),
+              ),
+              const SizedBox(height: 16),
+
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text(
+                    'Нет аккаунта? ',
+                    style: TextStyle(color: AppTheme.textMuted),
+                  ),
+                  TextButton(
+                    onPressed: _isLoading
+                        ? null
+                        : () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const RegisterScreen(),
+                      ),
+                    ),
+                    child: const Text(
+                      'Зарегистрироваться',
+                      style: TextStyle(
+                        color: AppTheme.accentBlue,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
