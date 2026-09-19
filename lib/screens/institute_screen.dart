@@ -20,7 +20,7 @@ class InstituteScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // ===== ШАПКА =====
+          // ===== ШАПКА С ЛОГОТИПОМ ИМИ (БЕЗ БЕЛОГО ФОНА) =====
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
@@ -36,18 +36,19 @@ class InstituteScreen extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Container(
-                      width: 60,
-                      height: 60,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white.withValues(alpha: 0.2),
-                        border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.4),
-                            width: 2),
+                    // ✅ ТОЛЬКО ЛОГОТИП — без кружка, без фона
+                    SizedBox(
+                      width: 70,
+                      height: 70,
+                      child: Image.asset(
+                        'assets/images/imi_logo.png',
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => const Icon(
+                          Icons.school,
+                          color: Colors.white,
+                          size: 50,
+                        ),
                       ),
-                      child: const Icon(Icons.school,
-                          color: Colors.white, size: 32),
                     ),
                     const SizedBox(width: 14),
                     const Expanded(

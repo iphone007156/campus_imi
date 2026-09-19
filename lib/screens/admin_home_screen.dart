@@ -5,6 +5,7 @@ import '../models/user_model.dart';
 import '../services/user_service.dart';
 import 'admin_events_screen.dart';
 import 'admin_users_screen.dart';
+import 'add_news_screen.dart';
 
 class AdminHomeScreen extends StatefulWidget {
   const AdminHomeScreen({super.key});
@@ -195,6 +196,13 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         );
         break;
 
+      case 'Добавить новость':
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const AddNewsScreen()),
+        );
+        break;
+
       case 'Управление расписанием':
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -208,15 +216,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Раздел "Оценки" в разработке'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-        break;
-
-      case 'Добавить новость':
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Раздел "Новости" в разработке'),
             behavior: SnackBarBehavior.floating,
           ),
         );

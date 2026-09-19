@@ -98,7 +98,7 @@ class GuestScreen extends StatelessWidget {
           const SizedBox(height: 24),
           Center(
             child: Text(
-              '© СВФУ им. М.К. Аммосова',
+              '© СВФУ им. М.К. Амосова',
               style: TextStyle(
                 fontSize: 11,
                 color: AppTheme.textMuted.withValues(alpha: 0.6),
