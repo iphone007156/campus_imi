@@ -10,7 +10,8 @@
   "bitrise": {},
   "ios": {
     "path": "ios",
-    "bundleId": "com.example.campusImi"
+    "bundleId": "com.example.campusImi",
+    "configuration": "Release"
   },
   "flutter": {
     "version": "3.44.1",
@@ -19,10 +20,10 @@
   "reactNative": {},
   "kmp": {},
   "mobai": {},
+  "defaultProfile": "preview",
   "profiles": {
     "preview": {
-      "configuration": "Release",
-      "distribution": "internal"
+      "configuration": "Release"
     }
   }
 }
