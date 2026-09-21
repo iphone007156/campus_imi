@@ -27,11 +27,22 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 
+	<!-- ✅ Разрешения на камеру и фото -->
 	<key>NSCameraUsageDescription</key>
 	<string>Приложению нужна камера, чтобы сделать фото профиля</string>
-
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Приложению нужен доступ к галерее, чтобы выбрать фото профиля</string>
+	<string>Приложению нужен доступ к галерее, чтобы выбрать фото</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Приложению нужен доступ к сохранению фото</string>
+
+	<!-- ✅ Разрешение на HTTP (небезопасные) запросы — для картинок по URL -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+		<key>NSAllowsArbitraryLoadsInWebContent</key>
+		<true/>
+	</dict>
 
 	<key>UIApplicationSceneManifest</key>
 	<dict>

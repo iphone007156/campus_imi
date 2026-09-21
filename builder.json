@@ -1,5 +1,5 @@
 {
-  "project": "git add .github/",
+  "project": "git add .",
   "platform": "ios",
   "github": {
     "owner": "iphone007156",
@@ -13,7 +13,7 @@
     "configuration": "Release"
   },
   "flutter": {
-    "version": "3.44.1",
+    "version": "git add .",
     "watch": {}
   },
   "reactNative": {},
