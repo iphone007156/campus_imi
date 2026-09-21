@@ -1,5 +1,5 @@
 {
-  "project": "builder ios build",
+  "project": "git add .github/",
   "platform": "ios",
   "github": {
     "owner": "iphone007156",
@@ -9,7 +9,6 @@
   "codemagic": {},
   "bitrise": {},
   "ios": {
-    "path": "ios",
     "bundleId": "com.example.campusImi",
     "configuration": "Release"
   },
