@@ -17,12 +17,19 @@ class NewsService {
         .toList());
   }
 
-  /// Добавить новость — только для авторизованных
+  /// Добавить новость
   Future<void> addNews(News news) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('Пользователь не авторизован');
-
     await _db.collection('news').add(news.toMap());
+  }
+
+  /// ✅ Обновить новость
+  Future<void> updateNews(News news) async {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('Пользователь не авторизован');
+
+    await _db.collection('news').doc(news.id).update(news.toMap());
   }
 
   /// Удалить новость

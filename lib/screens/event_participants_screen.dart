@@ -4,7 +4,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:convert';
 import '../theme/app_theme.dart';
 import '../models/event_model.dart';
+import '../models/user_model.dart';
 import '../services/event_service.dart';
+import '../services/user_service.dart';
 
 class EventParticipantsScreen extends StatefulWidget {
   final Event event;
@@ -18,13 +20,29 @@ class EventParticipantsScreen extends StatefulWidget {
 
 class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
   final EventService _eventService = EventService();
+  final UserService _userService = UserService();
+
   List<Map<String, dynamic>> _participantsData = [];
   bool _isLoading = true;
+  bool _isBulkAction = false;
+  UserRole _userRole = UserRole.student;
+
+  bool get _canMark =>
+      _userRole == UserRole.admin || _userRole == UserRole.activist;
+
+  bool get _isMine =>
+      FirebaseAuth.instance.currentUser?.uid == widget.event.organizerId;
 
   @override
   void initState() {
     super.initState();
+    _loadRole();
     _loadParticipantsData();
+  }
+
+  Future<void> _loadRole() async {
+    final role = await _eventService.getCurrentUserRole();
+    if (mounted) setState(() => _userRole = role);
   }
 
   Future<void> _loadParticipantsData() async {
@@ -32,100 +50,99 @@ class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
 
     try {
       final participants = widget.event.participants;
-      final List<Map<String, dynamic>> usersData = [];
-
-      for (String uid in participants) {
-        try {
-          final doc = await FirebaseFirestore.instance
-              .collection('users')
-              .doc(uid)
-              .get();
-
-          if (doc.exists) {
-            final data = doc.data() as Map<String, dynamic>;
-            final registeredAt = widget.event.getRegisteredAt(uid);
-            final wasLate = widget.event.wasRegisteredAfterEnd(uid);
-
-            usersData.add({
-              'uid': uid,
-              'name': data['name'] ?? 'Неизвестный',
-              'group': data['group'] ?? '—',
-              'email': data['email'] ?? '—',
-              'photoBase64': data['photoBase64'],
-              'attended': widget.event.attended.contains(uid),
-              'registeredAt': registeredAt,
-              'wasLate': wasLate,
-            });
-          }
-        } catch (e) {
-          print('Ошибка: $e');
-        }
+      if (participants.isEmpty) {
+        setState(() {
+          _participantsData = [];
+          _isLoading = false;
+        });
+        return;
       }
 
-      // Сортируем по времени записи (сначала самые ранние)
-      usersData.sort((a, b) {
-        final aTime = a['registeredAt'] as DateTime?;
-        final bTime = b['registeredAt'] as DateTime?;
-        if (aTime == null) return 1;
-        if (bTime == null) return -1;
-        return aTime.compareTo(bTime);
-      });
+      final usersMap = await _userService.getUsersByIds(participants);
+
+      final List<Map<String, dynamic>> usersData = [];
+      for (String uid in participants) {
+        final data = usersMap[uid];
+        if (data != null) {
+          usersData.add({
+            'uid': uid,
+            'name': data['name'] ?? 'Неизвестный',
+            'group': data['group'] ?? '—',
+            'photoBase64': data['photoBase64'],
+            'attended': widget.event.attended.contains(uid),
+          });
+        } else {
+          usersData.add({
+            'uid': uid,
+            'name': 'Пользователь удалён',
+            'group': '—',
+            'photoBase64': '',
+            'attended': widget.event.attended.contains(uid),
+          });
+        }
+      }
 
       setState(() {
         _participantsData = usersData;
         _isLoading = false;
       });
     } catch (e) {
-      print('Ошибка: $e');
+      print('❌ Ошибка: $e');
       setState(() => _isLoading = false);
     }
   }
 
-  Future<void> _toggleAttendance(String uid, bool attended) async {
+  Future<void> _toggleAttendance(String uid, bool currentAttended) async {
+    if (!_canMark) return;
+
     try {
-      if (attended) {
-        await _eventService.markAttended(widget.event.id, uid);
-      } else {
+      if (currentAttended) {
         await _eventService.markNotAttended(widget.event.id, uid);
+      } else {
+        await _eventService.markAttended(widget.event.id, uid);
       }
 
       setState(() {
-        final index = _participantsData.indexWhere((p) => p['uid'] == uid);
-        if (index != -1) {
-          _participantsData[index]['attended'] = attended;
+        final i = _participantsData.indexWhere((p) => p['uid'] == uid);
+        if (i != -1) {
+          _participantsData[i]['attended'] = !currentAttended;
         }
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            attended
-                ? '✅ Отмечено (+${widget.event.points} баллов)'
-                : '❌ Отметка снята',
+            currentAttended
+                ? '❌ Отметка снята'
+                : '✅ Отмечено (+${widget.event.points} баллов)',
           ),
-          backgroundColor: attended ? Colors.green : Colors.orange,
+          backgroundColor: currentAttended ? Colors.orange : Colors.green,
           behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2),
+          duration: const Duration(seconds: 1),
         ),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Ошибка: $e'), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text('Ошибка: $e'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
       );
     }
   }
 
-  Future<void> _finalizeEvent() async {
-    final attendedCount =
-        _participantsData.where((p) => p['attended'] == true).length;
+  // ✅ ОТМЕТИТЬ ВСЕХ
+  Future<void> _markAll() async {
+    if (!_canMark || _participantsData.isEmpty) return;
 
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Завершить мероприятие?'),
+        title: const Text('Отметить всех?'),
         content: Text(
-          'Баллы (+${widget.event.points}) будут начислены $attendedCount студентам.\n\n'
-              'После этого запись/отписка станут недоступны.',
+          'Все ${_participantsData.length} участников будут отмечены как пришедшие.\n\n'
+              'Баллы (+${widget.event.points}) начислятся после завершения мероприятия.',
         ),
         actions: [
           TextButton(
@@ -135,7 +152,7 @@ class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-            child: const Text('Завершить'),
+            child: const Text('Отметить всех'),
           ),
         ],
       ),
@@ -143,189 +160,110 @@ class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
 
     if (confirmed != true) return;
 
+    setState(() => _isBulkAction = true);
+
     try {
-      await _eventService.finalizeEvent(widget.event.id);
+      final allUids = _participantsData
+          .map((p) => p['uid'] as String)
+          .toList();
+
+      await _eventService.markAllAttended(widget.event.id, allUids);
+
+      setState(() {
+        for (var p in _participantsData) {
+          p['attended'] = true;
+        }
+        _isBulkAction = false;
+      });
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Мероприятие завершено, баллы начислены'),
+          SnackBar(
+            content: Text('✅ Отмечено ${allUids.length} участников'),
             backgroundColor: Colors.green,
             behavior: SnackBarBehavior.floating,
           ),
         );
-        Navigator.pop(context);
       }
     } catch (e) {
+      setState(() => _isBulkAction = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Ошибка: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('Ошибка: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
         );
       }
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    final isAdmin = currentUser?.uid == widget.event.organizerId;
-    final attendedCount =
-        _participantsData.where((p) => p['attended'] == true).length;
+  // ✅ СНЯТЬ ОТМЕТКУ СО ВСЕХ
+  Future<void> _unmarkAll() async {
+    if (!_canMark || _participantsData.isEmpty) return;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Участники'),
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Снять все отметки?'),
+        content: Text(
+          'С всех ${_participantsData.length} участников будет снята отметка "пришёл".',
+        ),
         actions: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(
-              '$attendedCount / ${_participantsData.length}',
-              style: const TextStyle(color: Colors.white, fontSize: 14),
-            ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Отмена'),
           ),
-          const SizedBox(width: 16),
-        ],
-      ),
-      backgroundColor: AppTheme.backgroundGray,
-      body: Column(
-        children: [
-          // Инфо-плашка
-          if (isAdmin && !widget.event.finalized)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              color: const Color(0xFFEDF4FF),
-              child: const Row(
-                children: [
-                  Icon(Icons.info_outline,
-                      color: AppTheme.accentBlue, size: 20),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Отмечайте студентов галочкой, которые пришли. Баллы начислятся только им.',
-                      style:
-                      TextStyle(fontSize: 12, color: AppTheme.textDark),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-          if (widget.event.finalized)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              color: Colors.green.withValues(alpha: 0.1),
-              child: const Row(
-                children: [
-                  Icon(Icons.check_circle, color: Colors.green, size: 20),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Мероприятие завершено. Баллы начислены.',
-                      style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.green,
-                          fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-          // Список
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _participantsData.isEmpty
-                ? _buildEmptyState()
-                : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: _participantsData.length,
-              itemBuilder: (context, i) => _ParticipantCard(
-                participant: _participantsData[i],
-                isAdmin: isAdmin && !widget.event.finalized,
-                endTime: widget.event.endTime,
-                onToggleAttendance: (attended) =>
-                    _toggleAttendance(
-                        _participantsData[i]['uid'], attended),
-              ),
-            ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+            child: const Text('Снять все'),
           ),
-
-          // Кнопка завершения
-          if (isAdmin &&
-              !widget.event.finalized &&
-              _participantsData.isNotEmpty)
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: const BoxDecoration(
-                color: AppTheme.cardWhite,
-                border: Border(top: BorderSide(color: AppTheme.divider)),
-              ),
-              child: SafeArea(
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _finalizeEvent,
-                    icon: const Icon(Icons.check_circle_outline),
-                    label: Text(
-                      'Завершить и начислить баллы ($attendedCount)',
-                      style: const TextStyle(fontSize: 15),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
         ],
       ),
     );
+
+    if (confirmed != true) return;
+
+    setState(() => _isBulkAction = true);
+
+    try {
+      final allUids = _participantsData
+          .map((p) => p['uid'] as String)
+          .toList();
+
+      await _eventService.unmarkAllAttended(widget.event.id, allUids);
+
+      setState(() {
+        for (var p in _participantsData) {
+          p['attended'] = false;
+        }
+        _isBulkAction = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Снято ${allUids.length} отметок'),
+            backgroundColor: Colors.orange,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() => _isBulkAction = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Ошибка: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
-
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.people_outline,
-              size: 64, color: AppTheme.textMuted),
-          const SizedBox(height: 16),
-          const Text('Нет участников',
-              style: TextStyle(fontSize: 18, color: AppTheme.textMuted)),
-          const SizedBox(height: 8),
-          Text('На мероприятие пока никто не записался',
-              style: TextStyle(
-                  fontSize: 14,
-                  color: AppTheme.textMuted.withValues(alpha: 0.7))),
-        ],
-      ),
-    );
-  }
-}
-
-class _ParticipantCard extends StatelessWidget {
-  final Map<String, dynamic> participant;
-  final bool isAdmin;
-  final DateTime? endTime;
-  final Function(bool) onToggleAttendance;
-
-  const _ParticipantCard({
-    required this.participant,
-    required this.isAdmin,
-    required this.endTime,
-    required this.onToggleAttendance,
-  });
 
   ImageProvider? _getImageFromBase64(String? base64String) {
     if (base64String == null || base64String.isEmpty) return null;
@@ -336,174 +274,336 @@ class _ParticipantCard extends StatelessWidget {
     }
   }
 
-  String _formatRegisteredAt(DateTime? dt) {
-    if (dt == null) return '—';
-    return '${dt.day.toString().padLeft(2, '0')}.${dt.month.toString().padLeft(2, '0')} '
-        '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  @override
+  Widget build(BuildContext context) {
+    final attendedCount =
+        _participantsData.where((p) => p['attended'] == true).length;
+    final allMarked = _participantsData.isNotEmpty &&
+        attendedCount == _participantsData.length;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Участники'),
+        actions: [
+          if (_canMark)
+            Container(
+              margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.verified_user,
+                      color: Colors.white, size: 14),
+                  const SizedBox(width: 4),
+                  Text(
+                    _userRole.label,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+      backgroundColor: AppTheme.backgroundGray,
+      body: Column(
+        children: [
+          // Статистика
+          Container(
+            margin: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [AppTheme.primaryNavy, Color(0xFF3D6FA3)],
+              ),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _StatBox(
+                    label: 'Записались',
+                    value: '${_participantsData.length}',
+                    color: Colors.white,
+                  ),
+                ),
+                Container(width: 1, height: 40, color: Colors.white24),
+                Expanded(
+                  child: _StatBox(
+                    label: 'Пришли',
+                    value: '$attendedCount',
+                    color: Colors.green,
+                  ),
+                ),
+                Container(width: 1, height: 40, color: Colors.white24),
+                Expanded(
+                  child: _StatBox(
+                    label: 'Баллов',
+                    value: '+${widget.event.points}',
+                    color: AppTheme.gold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // ✅ Кнопки массовых действий
+          if (_canMark && _participantsData.isNotEmpty)
+            Container(
+              margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _isBulkAction || allMarked
+                          ? null
+                          : _markAll,
+                      icon: _isBulkAction
+                          ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
+                      )
+                          : const Icon(Icons.done_all, size: 18),
+                      label: const Text('Отметить всех'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor: Colors.grey[300],
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _isBulkAction || attendedCount == 0
+                          ? null
+                          : _unmarkAll,
+                      icon: const Icon(Icons.remove_done, size: 18),
+                      label: const Text('Снять всех'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor: Colors.grey[300],
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          // Информация для студента
+          if (!_canMark)
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+                border:
+                Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.orange, size: 20),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Только администратор или активист может отмечать посещение',
+                      style: TextStyle(fontSize: 12, color: Colors.orange),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          if (_canMark && _userRole == UserRole.activist && !_isMine)
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.blue, size: 20),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Вы можете отмечать только участников СВОИХ мероприятий',
+                      style: TextStyle(fontSize: 12, color: Colors.blue),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          const SizedBox(height: 8),
+
+          // Список участников
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _participantsData.isEmpty
+                ? const Center(
+              child: Text(
+                'Пока никто не записался',
+                style: TextStyle(color: AppTheme.textMuted),
+              ),
+            )
+                : ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: _participantsData.length,
+              itemBuilder: (context, i) {
+                final p = _participantsData[i];
+                final isAttended = p['attended'] == true;
+                final photo = _getImageFromBase64(p['photoBase64']);
+
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppTheme.cardWhite,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isAttended
+                          ? Colors.green
+                          : AppTheme.divider,
+                      width: isAttended ? 2 : 1,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 46,
+                        height: 46,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppTheme.lightBlue,
+                          image: photo != null
+                              ? DecorationImage(
+                              image: photo, fit: BoxFit.cover)
+                              : null,
+                        ),
+                        child: photo == null
+                            ? const Icon(Icons.person,
+                            color: AppTheme.accentBlue)
+                            : null,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment:
+                          CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              p['name'],
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: AppTheme.textDark,
+                              ),
+                            ),
+                            Text(
+                              p['group'],
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppTheme.textMuted,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (_canMark)
+                        Checkbox(
+                          value: isAttended,
+                          onChanged: _isBulkAction
+                              ? null
+                              : (_) => _toggleAttendance(
+                              p['uid'], isAttended),
+                          activeColor: Colors.green,
+                        )
+                      else
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: isAttended
+                                ? Colors.green.withValues(alpha: 0.2)
+                                : Colors.grey[100],
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            isAttended
+                                ? Icons.check_circle
+                                : Icons.radio_button_unchecked,
+                            color: isAttended
+                                ? Colors.green
+                                : AppTheme.textMuted,
+                            size: 22,
+                          ),
+                        ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
   }
+}
+
+class _StatBox extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+
+  const _StatBox({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final photoProvider = _getImageFromBase64(participant['photoBase64']);
-    final isAttended = participant['attended'] == true;
-    final registeredAt = participant['registeredAt'] as DateTime?;
-    final wasLate = participant['wasLate'] == true;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: Material(
-        color: isAttended
-            ? Colors.green.withValues(alpha: 0.05)
-            : AppTheme.cardWhite,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: wasLate
-                  ? Colors.red
-                  : (isAttended ? Colors.green : AppTheme.divider),
-              width: (isAttended || wasLate) ? 1.5 : 1,
-            ),
-          ),
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              // Аватар
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppTheme.lightBlue,
-                  image: photoProvider != null
-                      ? DecorationImage(
-                      image: photoProvider, fit: BoxFit.cover)
-                      : null,
-                ),
-                child: photoProvider == null
-                    ? const Icon(Icons.person,
-                    color: AppTheme.accentBlue, size: 24)
-                    : null,
-              ),
-              const SizedBox(width: 12),
-
-              // Инфо
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            participant['name'] ?? 'Неизвестный',
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                              color: AppTheme.textDark,
-                            ),
-                          ),
-                        ),
-                        // Красный значок "поздно"
-                        if (wasLate)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: Colors.red.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(
-                                  color: Colors.red.withValues(alpha: 0.3)),
-                            ),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.warning_amber_rounded,
-                                    size: 11, color: Colors.red),
-                                SizedBox(width: 3),
-                                Text(
-                                  'Поздно',
-                                  style: TextStyle(
-                                    fontSize: 9,
-                                    color: Colors.red,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Row(
-                      children: [
-                        const Icon(Icons.groups_outlined,
-                            size: 12, color: AppTheme.textMuted),
-                        const SizedBox(width: 4),
-                        Text(participant['group'] ?? '—',
-                            style: const TextStyle(
-                                fontSize: 12, color: AppTheme.textMuted)),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    // ✅ Время записи
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.schedule,
-                          size: 12,
-                          color: wasLate ? Colors.red : Colors.green,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Записался: ${_formatRegisteredAt(registeredAt)}',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: wasLate ? Colors.red : Colors.green,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
-              // Чекбокс
-              if (isAdmin)
-                Checkbox(
-                  value: isAttended,
-                  onChanged: (value) => onToggleAttendance(value ?? false),
-                  activeColor: Colors.green,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(4)),
-                )
-              else if (isAttended)
-                Container(
-                  padding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.green.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.check_circle, color: Colors.green, size: 16),
-                      SizedBox(width: 4),
-                      Text('Пришёл',
-                          style: TextStyle(
-                              color: Colors.green,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600)),
-                    ],
-                  ),
-                ),
-            ],
+    return Column(
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.7),
+            fontSize: 11,
           ),
         ),
-      ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            color: color,
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ],
     );
   }
 }

@@ -6,6 +6,37 @@ class UserService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
+  // ✅ НОВЫЙ МЕТОД: загрузить всех пользователей ОДНИМ запросом
+  Future<Map<String, Map<String, dynamic>>> getUsersByIds(
+      List<String> uids) async {
+    if (uids.isEmpty) return {};
+
+    final Map<String, Map<String, dynamic>> result = {};
+
+    // Firestore позволяет максимум 10 в whereIn
+    for (int i = 0; i < uids.length; i += 10) {
+      final chunk = uids.sublist(
+        i,
+        i + 10 > uids.length ? uids.length : i + 10,
+      );
+
+      try {
+        final snapshot = await _db
+            .collection('users')
+            .where(FieldPath.documentId, whereIn: chunk)
+            .get();
+
+        for (var doc in snapshot.docs) {
+          result[doc.id] = doc.data();
+        }
+      } catch (e) {
+        print('❌ Ошибка загрузки чанка: $e');
+      }
+    }
+
+    return result;
+  }
+
   /// Получить модель текущего пользователя
   Future<UserModel?> getCurrentUser() async {
     final user = _auth.currentUser;

@@ -21,12 +21,10 @@ class EventService {
         .toList());
   }
 
-  // ✅ Создание с проверкой роли и максимума баллов
   Future<void> addEvent(Event event) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('Пользователь не авторизован');
 
-    // Проверяем роль
     final userDoc = await _db.collection('users').doc(user.uid).get();
     if (!userDoc.exists) throw Exception('Профиль не найден');
 
@@ -36,7 +34,6 @@ class EventService {
       throw Exception('Только активисты могут создавать мероприятия');
     }
 
-    // Проверка баллов
     if (role == UserRole.activist && event.points > 20) {
       throw Exception('Активист может ставить не более 20 баллов');
     }
@@ -44,7 +41,6 @@ class EventService {
     await _db.collection('events').add(event.toMap());
   }
 
-  // ✅ Обновление с проверкой прав
   Future<void> updateEvent(Event event) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('Пользователь не авторизован');
@@ -52,14 +48,12 @@ class EventService {
     final userDoc = await _db.collection('users').doc(user.uid).get();
     final role = UserModel.parseRole(userDoc.data()?['role']);
 
-    // Организатор или админ
     final canEdit = user.uid == event.organizerId || role == UserRole.admin;
 
     if (!canEdit) {
       throw Exception('Нет прав на редактирование');
     }
 
-    // Проверка баллов для активиста
     if (role == UserRole.activist && event.points > 20) {
       throw Exception('Активист может ставить не более 20 баллов');
     }
@@ -67,7 +61,6 @@ class EventService {
     await _db.collection('events').doc(event.id).update(event.toMap());
   }
 
-  // ✅ Удаление с проверкой прав
   Future<void> deleteEvent(String eventId) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('Пользователь не авторизован');
@@ -131,7 +124,6 @@ class EventService {
     final user = _auth.currentUser;
     if (user == null) return;
 
-    // Проверка прав
     final eventDoc = await _db.collection('events').doc(eventId).get();
     if (!eventDoc.exists) return;
 
@@ -152,12 +144,81 @@ class EventService {
   }
 
   Future<void> markNotAttended(String eventId, String uid) async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    final eventDoc = await _db.collection('events').doc(eventId).get();
+    if (!eventDoc.exists) return;
+
+    final event = Event.fromMap(eventId, eventDoc.data()!);
+
+    final userDoc = await _db.collection('users').doc(user.uid).get();
+    final role = UserModel.parseRole(userDoc.data()?['role']);
+
+    final canMark = user.uid == event.organizerId || role == UserRole.admin;
+
+    if (!canMark) {
+      throw Exception('Нет прав на отметку посещения');
+    }
+
     await _db.collection('events').doc(eventId).update({
       'attended': FieldValue.arrayRemove([uid]),
     });
   }
 
-  // ===== ЗАВЕРШЕНИЕ =====
+  // ✅ ОТМЕТИТЬ ВСЕХ СРАЗУ
+  Future<void> markAllAttended(String eventId, List<String> uids) async {
+    if (uids.isEmpty) return;
+
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    final eventDoc = await _db.collection('events').doc(eventId).get();
+    if (!eventDoc.exists) return;
+
+    final event = Event.fromMap(eventId, eventDoc.data()!);
+
+    final userDoc = await _db.collection('users').doc(user.uid).get();
+    final role = UserModel.parseRole(userDoc.data()?['role']);
+
+    final canMark = user.uid == event.organizerId || role == UserRole.admin;
+
+    if (!canMark) {
+      throw Exception('Нет прав на отметку посещения');
+    }
+
+    await _db.collection('events').doc(eventId).update({
+      'attended': FieldValue.arrayUnion(uids),
+    });
+  }
+
+  // ✅ СНЯТЬ ОТМЕТКУ СО ВСЕХ
+  Future<void> unmarkAllAttended(String eventId, List<String> uids) async {
+    if (uids.isEmpty) return;
+
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    final eventDoc = await _db.collection('events').doc(eventId).get();
+    if (!eventDoc.exists) return;
+
+    final event = Event.fromMap(eventId, eventDoc.data()!);
+
+    final userDoc = await _db.collection('users').doc(user.uid).get();
+    final role = UserModel.parseRole(userDoc.data()?['role']);
+
+    final canMark = user.uid == event.organizerId || role == UserRole.admin;
+
+    if (!canMark) {
+      throw Exception('Нет прав на отметку посещения');
+    }
+
+    await _db.collection('events').doc(eventId).update({
+      'attended': FieldValue.arrayRemove(uids),
+    });
+  }
+
+  // ===== ЗАВЕРШЕНИЕ (✅ ИСПРАВЛЕНО) =====
   Future<void> finalizeEvent(String eventId) async {
     final user = _auth.currentUser;
     if (user == null) return;
@@ -167,7 +228,11 @@ class EventService {
 
     final event = Event.fromMap(doc.id, doc.data()!);
 
-    // Проверка прав
+    // Проверка: уже завершено?
+    if (event.finalized) {
+      throw Exception('Мероприятие уже завершено');
+    }
+
     final userDoc = await _db.collection('users').doc(user.uid).get();
     final role = UserModel.parseRole(userDoc.data()?['role']);
 
@@ -177,27 +242,31 @@ class EventService {
       throw Exception('Нет прав на завершение');
     }
 
-    // Начисляем баллы
-    for (String uid in event.attended) {
-      try {
-        final uDoc = await _db.collection('users').doc(uid).get();
-        if (uDoc.exists) {
-          final data = uDoc.data() ?? {};
-          final currentPoints =
-              int.tryParse(data['unionPoints']?.toString() ?? '0') ?? 0;
+    // ✅ Используем batch для атомарного начисления
+    final batch = _db.batch();
 
-          await _db.collection('users').doc(uid).update({
-            'unionPoints': currentPoints + event.points,
-          });
-        }
-      } catch (e) {
-        print('❌ Ошибка начисления: $e');
+    for (String uid in event.attended) {
+      final uRef = _db.collection('users').doc(uid);
+      final uDoc = await uRef.get();
+      if (uDoc.exists) {
+        final data = uDoc.data() ?? {};
+        final currentPoints =
+            int.tryParse(data['unionPoints']?.toString() ?? '0') ?? 0;
+
+        batch.update(uRef, {
+          'unionPoints': currentPoints + event.points,
+        });
       }
     }
 
-    await _db.collection('events').doc(eventId).update({
+    // Помечаем мероприятие завершённым
+    batch.update(_db.collection('events').doc(eventId), {
       'finalized': true,
+      'finalizedAt': FieldValue.serverTimestamp(),
     });
+
+    await batch.commit();
+    print('✅ Начислено ${event.points} баллов ${event.attended.length} участникам');
   }
 
   // ===== БАЛЛЫ =====
@@ -220,5 +289,19 @@ class EventService {
 
     final participants = List<String>.from(doc.data()?['participants'] ?? []);
     return participants.contains(user.uid);
+  }
+
+  // ===== РОЛЬ =====
+  Future<UserRole> getCurrentUserRole() async {
+    final user = _auth.currentUser;
+    if (user == null) return UserRole.student;
+
+    try {
+      final doc = await _db.collection('users').doc(user.uid).get();
+      if (!doc.exists) return UserRole.student;
+      return UserModel.parseRole(doc.data()?['role']);
+    } catch (e) {
+      return UserRole.student;
+    }
   }
 }

@@ -350,19 +350,49 @@ class _EventCard extends StatelessWidget {
 
   const _EventCard({required this.event, required this.onTap});
 
+  // ✅ Оптимизированное построение картинки
   Widget _buildEventImage() {
-    // 1. URL
+    // 1. URL — оптимизированный Image.network
     if (event.imageUrl.isNotEmpty) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(10),
-        child: Image.network(
-          event.imageUrl,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => const Icon(
-            Icons.event,
-            color: AppTheme.accentBlue,
-            size: 28,
-          ),
+      return Image.network(
+        event.imageUrl,
+        fit: BoxFit.cover,
+        width: 80,
+        height: 80,
+        cacheWidth: 200,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Container(
+            width: 80,
+            height: 80,
+            color: AppTheme.lightBlue,
+            child: Center(
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppTheme.accentBlue,
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded /
+                    loadingProgress.expectedTotalBytes!
+                    : null,
+              ),
+            ),
+          );
+        },
+        frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+          if (wasSynchronouslyLoaded) return child;
+          return AnimatedOpacity(
+            opacity: frame == null ? 0 : 1,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+            child: child,
+          );
+        },
+        errorBuilder: (_, __, ___) => Container(
+          width: 80,
+          height: 80,
+          color: AppTheme.lightBlue,
+          child: const Icon(Icons.event,
+              color: AppTheme.accentBlue, size: 32),
         ),
       );
     }
@@ -371,32 +401,40 @@ class _EventCard extends StatelessWidget {
     if (event.imageBase64.isNotEmpty) {
       try {
         final bytes = base64Decode(event.imageBase64);
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(10),
-          child: Image.memory(
-            bytes,
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => const Icon(
-              Icons.event,
-              color: AppTheme.accentBlue,
-              size: 28,
-            ),
+        return Image.memory(
+          bytes,
+          fit: BoxFit.cover,
+          width: 80,
+          height: 80,
+          errorBuilder: (_, __, ___) => Container(
+            width: 80,
+            height: 80,
+            color: AppTheme.lightBlue,
+            child: const Icon(Icons.event,
+                color: AppTheme.accentBlue, size: 32),
           ),
         );
       } catch (e) {
-        return const Icon(
-          Icons.event,
-          color: AppTheme.accentBlue,
-          size: 28,
+        return Container(
+          width: 80,
+          height: 80,
+          color: AppTheme.lightBlue,
+          child: const Icon(Icons.event,
+              color: AppTheme.accentBlue, size: 32),
         );
       }
     }
 
-    // 3. Иконка
-    return const Icon(
-      Icons.event,
-      color: AppTheme.accentBlue,
-      size: 28,
+    // 3. Иконка (если нет ни URL, ни Base64)
+    return Container(
+      width: 80,
+      height: 80,
+      color: AppTheme.lightBlue,
+      child: const Icon(
+        Icons.event,
+        color: AppTheme.accentBlue,
+        size: 32,
+      ),
     );
   }
 
@@ -415,23 +453,20 @@ class _EventCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: AppTheme.divider),
             ),
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(12),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Изображение
-                Container(
-                  width: 50,
-                  height: 50,
-                  decoration: BoxDecoration(
-                    color: AppTheme.lightBlue,
-                    borderRadius: BorderRadius.circular(10),
+                // ✅ Картинка 80×80
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: SizedBox(
+                    width: 80,
+                    height: 80,
+                    child: _buildEventImage(),
                   ),
-                  child: _buildEventImage(),
                 ),
                 const SizedBox(width: 12),
-
-                // Информация
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -446,6 +481,8 @@ class _EventCard extends StatelessWidget {
                                 fontWeight: FontWeight.w600,
                                 color: AppTheme.textDark,
                               ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                           if (event.finalized)
@@ -505,45 +542,43 @@ class _EventCard extends StatelessWidget {
                           ),
                         ],
                       ),
-                    ],
-                  ),
-                ),
-
-                // Баллы
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppTheme.gold.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
+                      const SizedBox(height: 6),
+                      Row(
                         children: [
-                          const Icon(Icons.star,
-                              color: AppTheme.gold, size: 14),
-                          const SizedBox(width: 4),
-                          Text(
-                            '+${event.points}',
-                            style: const TextStyle(
-                              color: AppTheme.gold,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: AppTheme.gold.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(8),
                             ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.star,
+                                    color: AppTheme.gold, size: 12),
+                                const SizedBox(width: 3),
+                                Text(
+                                  '+${event.points}',
+                                  style: const TextStyle(
+                                    color: AppTheme.gold,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${event.participants.length} участ.',
+                            style: const TextStyle(
+                                fontSize: 11, color: AppTheme.textMuted),
                           ),
                         ],
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${event.participants.length} участ.',
-                      style: const TextStyle(
-                          fontSize: 10, color: AppTheme.textMuted),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ],
             ),

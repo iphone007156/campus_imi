@@ -30,10 +30,12 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   Future<void> _checkParticipation() async {
     final isParticipant =
     await _eventService.isUserParticipant(widget.event.id);
-    setState(() {
-      _isParticipant = isParticipant;
-      _isLoading = false;
-    });
+    if (mounted) {
+      setState(() {
+        _isParticipant = isParticipant;
+        _isLoading = false;
+      });
+    }
   }
 
   void _checkAdmin() {
@@ -44,7 +46,6 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   }
 
   Future<void> _toggleParticipation() async {
-    // ✅ Проверка окончания
     if (widget.event.isFinished) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -61,36 +62,42 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     try {
       if (_isParticipant) {
         await _eventService.leaveEvent(widget.event.id);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Вы отписались от мероприятия'),
-            backgroundColor: Colors.orange,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Вы отписались от мероприятия'),
+              backgroundColor: Colors.orange,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
       } else {
         await _eventService.joinEvent(widget.event.id);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                '✅ Вы записались! Баллы (+${widget.event.points}) начислятся после посещения 🎉',
+              ),
+              backgroundColor: Colors.green,
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+
+      if (mounted) setState(() => _isParticipant = !_isParticipant);
+    } catch (e) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              '✅ Вы записались! Баллы (+${widget.event.points}) начислятся после посещения 🎉',
-            ),
-            backgroundColor: Colors.green,
+            content: Text('❌ $e'),
+            backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 3),
           ),
         );
       }
-
-      setState(() => _isParticipant = !_isParticipant);
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('❌ $e'),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -131,7 +138,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Изображение
+            // ===== ИЗОБРАЖЕНИЕ — оптимизированное =====
             if (widget.event.imageUrl.isNotEmpty)
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
@@ -140,17 +147,55 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   height: 200,
                   width: double.infinity,
                   fit: BoxFit.cover,
+                  cacheWidth: 800,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return Container(
+                      height: 200,
+                      color: AppTheme.lightBlue,
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppTheme.accentBlue,
+                          value: loadingProgress.expectedTotalBytes != null
+                              ? loadingProgress.cumulativeBytesLoaded /
+                              loadingProgress.expectedTotalBytes!
+                              : null,
+                        ),
+                      ),
+                    );
+                  },
+                  frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                    if (wasSynchronouslyLoaded) return child;
+                    return AnimatedOpacity(
+                      opacity: frame == null ? 0 : 1,
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeOut,
+                      child: child,
+                    );
+                  },
                   errorBuilder: (_, __, ___) => Container(
                     height: 200,
                     color: AppTheme.lightBlue,
-                    child: const Icon(Icons.image_not_supported,
-                        size: 48, color: AppTheme.textMuted),
+                    child: const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.image_not_supported,
+                              size: 48, color: AppTheme.textMuted),
+                          SizedBox(height: 8),
+                          Text('Не удалось загрузить',
+                              style: TextStyle(
+                                  fontSize: 12, color: AppTheme.textMuted)),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
             const SizedBox(height: 16),
 
-            // Основная информация
+            // ===== ОСНОВНАЯ ИНФОРМАЦИЯ =====
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -241,7 +286,6 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                       ],
                     ),
                   ],
-                  // Статус "завершено"
                   if (isFinished) ...[
                     const SizedBox(height: 12),
                     Container(
@@ -276,7 +320,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Описание
+            // ===== ОПИСАНИЕ =====
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -309,7 +353,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             ),
             const SizedBox(height: 24),
 
-            // Кнопка "Посмотреть участников"
+            // ===== УЧАСТНИКИ =====
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
@@ -345,7 +389,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             ),
             const SizedBox(height: 12),
 
-            // Кнопка записи/отписки (только для студентов)
+            // ===== КНОПКА ЗАПИСИ =====
             if (!_isAdmin)
               SizedBox(
                 width: double.infinity,

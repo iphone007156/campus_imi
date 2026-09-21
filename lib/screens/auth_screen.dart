@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../utils/validators.dart';
 import 'register_screen.dart';
-import 'forgot_password_screen.dart';   // ← ИМПОРТ
+import 'forgot_password_screen.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});

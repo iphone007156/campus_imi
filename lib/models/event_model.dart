@@ -10,6 +10,7 @@ class Event {
   final int points;
   final String organizer;
   final String organizerId;
+  final String organizerRole; // ✅ НОВОЕ: 'admin' или 'activist'
   final String imageUrl;
   final String imageBase64;
   final List<String> participants;
@@ -29,6 +30,7 @@ class Event {
     required this.points,
     required this.organizer,
     required this.organizerId,
+    this.organizerRole = 'activist', // по умолчанию активист
     required this.imageUrl,
     this.imageBase64 = '',
     required this.participants,
@@ -72,6 +74,7 @@ class Event {
       points: int.tryParse(map['points']?.toString() ?? '0') ?? 0,
       organizer: map['organizer'] ?? '',
       organizerId: map['organizerId'] ?? '',
+      organizerRole: map['organizerRole'] ?? 'activist',
       imageUrl: map['imageUrl'] ?? '',
       imageBase64: map['imageBase64'] ?? '',
       participants: List<String>.from(map['participants'] ?? []),
@@ -93,6 +96,7 @@ class Event {
       'points': points,
       'organizer': organizer,
       'organizerId': organizerId,
+      'organizerRole': organizerRole,
       'imageUrl': imageUrl,
       'imageBase64': imageBase64,
       'participants': participants,
@@ -114,6 +118,7 @@ class Event {
     int? points,
     String? organizer,
     String? organizerId,
+    String? organizerRole,
     String? imageUrl,
     String? imageBase64,
     List<String>? participants,
@@ -133,6 +138,7 @@ class Event {
       points: points ?? this.points,
       organizer: organizer ?? this.organizer,
       organizerId: organizerId ?? this.organizerId,
+      organizerRole: organizerRole ?? this.organizerRole,
       imageUrl: imageUrl ?? this.imageUrl,
       imageBase64: imageBase64 ?? this.imageBase64,
       participants: participants ?? this.participants,

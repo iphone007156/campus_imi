@@ -48,7 +48,6 @@ class _NewsScreenState extends State<NewsScreen> {
         ),
         title: const Text('Новости'),
         actions: [
-          // ✅ Кнопка "+" — только для авторизованного админа
           if (FirebaseAuth.instance.currentUser != null)
             FutureBuilder<DocumentSnapshot>(
               future: FirebaseFirestore.instance
@@ -69,9 +68,7 @@ class _NewsScreenState extends State<NewsScreen> {
                             builder: (_) => const AddNewsScreen(),
                           ),
                         );
-                        if (result == true) {
-                          setState(() {});
-                        }
+                        if (result == true) setState(() {});
                       },
                     );
                   }
@@ -83,7 +80,6 @@ class _NewsScreenState extends State<NewsScreen> {
       ),
       body: Column(
         children: [
-          // ===== ПОИСК =====
           Container(
             color: AppTheme.cardWhite,
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
@@ -114,8 +110,6 @@ class _NewsScreenState extends State<NewsScreen> {
               },
             ),
           ),
-
-          // ===== КАТЕГОРИИ =====
           Container(
             color: AppTheme.cardWhite,
             padding: const EdgeInsets.only(bottom: 10),
@@ -159,8 +153,6 @@ class _NewsScreenState extends State<NewsScreen> {
               ),
             ),
           ),
-
-          // ===== СПИСОК НОВОСТЕЙ =====
           Expanded(
             child: StreamBuilder<List<News>>(
               stream: _newsService.getNews(),
@@ -168,7 +160,6 @@ class _NewsScreenState extends State<NewsScreen> {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
-
                 if (snapshot.hasError) {
                   return Center(
                     child: Column(
@@ -201,9 +192,7 @@ class _NewsScreenState extends State<NewsScreen> {
                   }).toList();
                 }
 
-                if (news.isEmpty) {
-                  return _buildEmptyState();
-                }
+                if (news.isEmpty) return _buildEmptyState();
 
                 return ListView.builder(
                   padding: const EdgeInsets.all(16),
@@ -275,6 +264,32 @@ class _NewsCard extends StatelessWidget {
       return Image.network(
         news.imageUrl,
         fit: BoxFit.cover,
+        cacheWidth: 400,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Container(
+            color: AppTheme.lightBlue,
+            child: Center(
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppTheme.accentBlue,
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded /
+                    loadingProgress.expectedTotalBytes!
+                    : null,
+              ),
+            ),
+          );
+        },
+        frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+          if (wasSynchronouslyLoaded) return child;
+          return AnimatedOpacity(
+            opacity: frame == null ? 0 : 1,
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOut,
+            child: child,
+          );
+        },
         errorBuilder: (_, __, ___) => _buildPlaceholder(),
       );
     }
@@ -343,7 +358,6 @@ class _NewsCard extends StatelessWidget {
                     child: _buildImage(),
                   ),
                 ),
-
               Padding(
                 padding: const EdgeInsets.all(14),
                 child: Column(
@@ -380,7 +394,6 @@ class _NewsCard extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 10),
-
                     Text(
                       news.title,
                       style: const TextStyle(
@@ -393,7 +406,6 @@ class _NewsCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 6),
-
                     Text(
                       news.shortDescription.isNotEmpty
                           ? news.shortDescription
@@ -406,9 +418,7 @@ class _NewsCard extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-
                     const SizedBox(height: 10),
-
                     Row(
                       children: [
                         if (news.authorName.isNotEmpty) ...[

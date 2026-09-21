@@ -13,6 +13,32 @@ class NewsDetailScreen extends StatelessWidget {
       return Image.network(
         news.imageUrl,
         fit: BoxFit.cover,
+        cacheWidth: 800,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Container(
+            color: AppTheme.lightBlue,
+            child: Center(
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppTheme.accentBlue,
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded /
+                    loadingProgress.expectedTotalBytes!
+                    : null,
+              ),
+            ),
+          );
+        },
+        frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+          if (wasSynchronouslyLoaded) return child;
+          return AnimatedOpacity(
+            opacity: frame == null ? 0 : 1,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+            child: child,
+          );
+        },
         errorBuilder: (_, __, ___) => _buildPlaceholder(),
       );
     }
@@ -90,7 +116,6 @@ class NewsDetailScreen extends StatelessWidget {
                 height: 260,
                 child: _buildImage(),
               ),
-
             Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
@@ -129,7 +154,6 @@ class NewsDetailScreen extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 16),
-
                   Text(
                     news.title,
                     style: const TextStyle(
@@ -140,7 +164,6 @@ class NewsDetailScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
-
                   if (news.authorName.isNotEmpty)
                     Row(
                       children: [
@@ -177,10 +200,8 @@ class NewsDetailScreen extends StatelessWidget {
                       ],
                     ),
                   const SizedBox(height: 20),
-
                   Container(height: 1, color: AppTheme.divider),
                   const SizedBox(height: 20),
-
                   Text(
                     news.body,
                     style: const TextStyle(

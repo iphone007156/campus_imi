@@ -9,7 +9,12 @@ import '../models/news_model.dart';
 import '../services/news_service.dart';
 
 class AddNewsScreen extends StatefulWidget {
-  const AddNewsScreen({super.key});
+  /// ✅ null = создание новой, не null = редактирование
+  final News? news;
+
+  const AddNewsScreen({super.key, this.news});
+
+  bool get isEditing => news != null;
 
   @override
   State<AddNewsScreen> createState() => _AddNewsScreenState();
@@ -37,6 +42,29 @@ class _AddNewsScreenState extends State<AddNewsScreen> {
     'События',
     'Культура',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+
+    // ✅ Если редактирование — заполняем поля
+    if (widget.news != null) {
+      final news = widget.news!;
+      _titleController.text = news.title;
+      _shortDescController.text = news.shortDescription;
+      _bodyController.text = news.body;
+      _imageUrlController.text = news.imageUrl;
+      _category = news.category;
+
+      // Если Base64 — показываем
+      if (news.imageBase64.isNotEmpty) {
+        _imageBase64 = news.imageBase64;
+        _imageMode = 'file';
+      } else if (news.imageUrl.isNotEmpty) {
+        _imageMode = 'url';
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -91,7 +119,8 @@ class _AddNewsScreenState extends State<AddNewsScreen> {
     }
   }
 
-  Future<void> _addNews() async {
+  // ✅ ЕДИНЫЙ МЕТОД: создание ИЛИ редактирование
+  Future<void> _saveNews() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
@@ -100,14 +129,15 @@ class _AddNewsScreenState extends State<AddNewsScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) throw Exception('Пользователь не авторизован');
 
-      // Получаем имя автора
+      // Имя автора
       final userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .get();
-      final userName = userDoc.data()?['name'] ?? 'Администратор';
+      final userName = userDoc.data()?['name'] ??
+          (widget.news?.authorName ?? 'Администратор');
 
-      // Формируем дату
+      // Дата
       final now = DateTime.now();
       final dateStr =
           '${now.day.toString().padLeft(2, '0')}.${now.month.toString().padLeft(2, '0')}.${now.year}';
@@ -124,25 +154,33 @@ class _AddNewsScreenState extends State<AddNewsScreen> {
       }
 
       final news = News(
-        id: '',
+        id: widget.news?.id ?? '',
         title: _titleController.text.trim(),
         body: _bodyController.text.trim(),
         shortDescription: _shortDescController.text.trim(),
-        date: dateStr,
+        date: widget.news?.date ?? dateStr,
         category: _category,
         authorName: userName,
-        authorId: user.uid,
+        authorId: widget.news?.authorId ?? user.uid,
         imageUrl: imageUrl,
         imageBase64: imageBase64,
-        createdAt: DateTime.now(),
+        createdAt: widget.news?.createdAt ?? DateTime.now(),
       );
 
-      await _newsService.addNews(news);
+      if (widget.isEditing) {
+        // ✅ Редактирование
+        await _newsService.updateNews(news);
+      } else {
+        // ✅ Создание
+        await _newsService.addNews(news);
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Новость опубликована!'),
+          SnackBar(
+            content: Text(widget.isEditing
+                ? '✅ Новость обновлена!'
+                : '✅ Новость опубликована!'),
             backgroundColor: Colors.green,
             behavior: SnackBarBehavior.floating,
           ),
@@ -164,10 +202,73 @@ class _AddNewsScreenState extends State<AddNewsScreen> {
     }
   }
 
+  // ✅ ДИАЛОГ УДАЛЕНИЯ (только для редактирования)
+  Future<void> _deleteNews() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Удалить новость?'),
+        content: Text(
+          'Новость "${widget.news?.title}" будет удалена навсегда.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Отмена'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Удалить'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await _newsService.deleteNews(widget.news!.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Новость удалена'),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Добавить новость')),
+      appBar: AppBar(
+        title: Text(widget.isEditing
+            ? 'Редактировать новость'
+            : 'Добавить новость'),
+        actions: [
+          // ✅ Кнопка удаления (только при редактировании)
+          if (widget.isEditing)
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.white),
+              tooltip: 'Удалить',
+              onPressed: _isLoading ? null : _deleteNews,
+            ),
+        ],
+      ),
       backgroundColor: AppTheme.backgroundGray,
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -211,8 +312,7 @@ class _AddNewsScreenState extends State<AddNewsScreen> {
                       child: Row(
                         children: [
                           const Icon(Icons.category,
-                              size: 20,
-                              color: AppTheme.textMuted),
+                              size: 20, color: AppTheme.textMuted),
                           const SizedBox(width: 8),
                           Text(c),
                         ],
@@ -331,8 +431,13 @@ class _AddNewsScreenState extends State<AddNewsScreen> {
                       border: Border.all(
                         color: _selectedImage != null
                             ? Colors.green
+                            : (_imageBase64 != null && _imageBase64!.isNotEmpty)
+                            ? Colors.green
                             : AppTheme.divider,
-                        width: _selectedImage != null ? 2 : 1,
+                        width: (_selectedImage != null ||
+                            (_imageBase64 != null && _imageBase64!.isNotEmpty))
+                            ? 2
+                            : 1,
                       ),
                     ),
                     child: _selectedImage != null
@@ -374,6 +479,63 @@ class _AddNewsScreenState extends State<AddNewsScreen> {
                         ],
                       ),
                     )
+                        : (_imageBase64 != null && _imageBase64!.isNotEmpty)
+                        ? ClipRRect(
+                      borderRadius: BorderRadius.circular(11),
+                      child: Stack(
+                        children: [
+                          Image.memory(
+                            base64Decode(_imageBase64!),
+                            width: double.infinity,
+                            height: 180,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const Column(
+                              mainAxisAlignment:
+                              MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.broken_image_outlined,
+                                    size: 40,
+                                    color: AppTheme.textMuted),
+                                SizedBox(height: 8),
+                                Text(
+                                  'Не удалось загрузить',
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      color: AppTheme.textMuted),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Positioned(
+                            top: 8,
+                            right: 8,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.green,
+                                borderRadius:
+                                BorderRadius.circular(8),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.check_circle,
+                                      color: Colors.white, size: 14),
+                                  SizedBox(width: 4),
+                                  Text('Загружено',
+                                      style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 11,
+                                          fontWeight:
+                                          FontWeight.w600)),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
                         : const Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -393,7 +555,8 @@ class _AddNewsScreenState extends State<AddNewsScreen> {
                     ),
                   ),
                 ),
-                if (_selectedImage != null) ...[
+                if (_selectedImage != null ||
+                    (_imageBase64 != null && _imageBase64!.isNotEmpty)) ...[
                   const SizedBox(height: 8),
                   TextButton.icon(
                     onPressed: () {
@@ -441,19 +604,23 @@ class _AddNewsScreenState extends State<AddNewsScreen> {
               ),
               const SizedBox(height: 24),
 
-              // Кнопка публикации
+              // Кнопка публикации / сохранения
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: _isLoading ? null : _addNews,
+                  onPressed: _isLoading ? null : _saveNews,
                   icon: _isLoading
                       ? const SizedBox(
                       width: 18,
                       height: 18,
                       child: CircularProgressIndicator(
                           strokeWidth: 2, color: Colors.white))
-                      : const Icon(Icons.publish),
-                  label: Text(_isLoading ? 'Публикация...' : 'Опубликовать'),
+                      : Icon(widget.isEditing ? Icons.save : Icons.publish),
+                  label: Text(
+                    _isLoading
+                        ? (widget.isEditing ? 'Сохранение...' : 'Публикация...')
+                        : (widget.isEditing ? 'Сохранить' : 'Опубликовать'),
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.primaryNavy,
                     foregroundColor: Colors.white,

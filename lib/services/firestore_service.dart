@@ -1,22 +1,18 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart'; // <-- Добавьте этот импорт для debugPrint
+import 'package:flutter/foundation.dart';
 import '../models/lesson.dart';
 import '../models/subject.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  // Кэш для уменьшения запросов
   static final Map<String, DocumentSnapshot> _userCache = {};
 
   // --- User Management ---
-
   Future<DocumentSnapshot> getUserData(String uid) async {
-    // Проверяем кэш
     if (_userCache.containsKey(uid)) {
       return _userCache[uid]!;
     }
-
     try {
       final doc = await _db.collection('users').doc(uid).get();
       _userCache[uid] = doc;
@@ -42,12 +38,22 @@ class FirestoreService {
   }
 
   // --- Lessons (Schedule) ---
+  Stream<List<Lesson>> getAllLessons() {
+    return _db
+        .collection('lessons')
+        .orderBy('dayIndex')
+        .orderBy('time')
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+        .map((doc) => Lesson.fromMap(doc.id, doc.data()))
+        .toList());
+  }
 
   Stream<List<Lesson>> getLessons(int dayIndex) {
     return _db
         .collection('lessons')
         .where('dayIndex', isEqualTo: dayIndex)
-        .orderBy('time') // Сортировка по времени
+        .orderBy('time')
         .snapshots()
         .map((snapshot) => snapshot.docs
         .map((doc) => Lesson.fromMap(doc.id, doc.data()))
@@ -67,7 +73,6 @@ class FirestoreService {
   }
 
   // --- Subjects (Gradebook) ---
-
   Stream<List<Subject>> getSubjects() {
     return _db.collection('subjects').snapshots().map((snapshot) => snapshot.docs
         .map((doc) => Subject.fromMap(doc.id, doc.data()))
@@ -86,7 +91,6 @@ class FirestoreService {
     return _db.collection('subjects').doc(id).delete();
   }
 
-  // Очистка кэша при выходе
   void clearCache() {
     _userCache.clear();
   }

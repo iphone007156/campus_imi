@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../theme/app_theme.dart';
-import '../models/user_model.dart';
 
 class AdminUsersScreen extends StatefulWidget {
   const AdminUsersScreen({super.key});
@@ -13,17 +12,58 @@ class AdminUsersScreen extends StatefulWidget {
 class _AdminUsersScreenState extends State<AdminUsersScreen> {
   String _searchQuery = '';
   String _filterRole = 'all';
+  String _sortBy = 'name'; // 'name' | 'points'
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Список студентов'),
+        actions: [
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.sort),
+            tooltip: 'Сортировка',
+            onSelected: (value) => setState(() => _sortBy = value),
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: 'name',
+                child: Row(
+                  children: [
+                    Icon(
+                      _sortBy == 'name'
+                          ? Icons.radio_button_checked
+                          : Icons.radio_button_off,
+                      size: 20,
+                      color: AppTheme.accentBlue,
+                    ),
+                    const SizedBox(width: 8),
+                    const Text('По имени'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'points',
+                child: Row(
+                  children: [
+                    Icon(
+                      _sortBy == 'points'
+                          ? Icons.radio_button_checked
+                          : Icons.radio_button_off,
+                      size: 20,
+                      color: AppTheme.gold,
+                    ),
+                    const SizedBox(width: 8),
+                    const Text('По баллам'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
       backgroundColor: AppTheme.backgroundGray,
       body: Column(
         children: [
-          // Поиск
           Container(
             color: AppTheme.cardWhite,
             padding: const EdgeInsets.all(12),
@@ -41,8 +81,6 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
               },
             ),
           ),
-
-          // Фильтры по роли
           Container(
             color: AppTheme.cardWhite,
             padding: const EdgeInsets.only(bottom: 10),
@@ -72,8 +110,6 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
               ],
             ),
           ),
-
-          // Список пользователей
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
@@ -105,18 +141,17 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                     'group': data['group'] ?? '—',
                     'email': data['email'] ?? '—',
                     'role': data['role']?.toString() ?? 'student',
-                    'unionPoints': data['unionPoints'] ?? 0,
+                    'unionPoints':
+                    int.tryParse(data['unionPoints']?.toString() ?? '0') ??
+                        0,
                   };
                 }).toList();
 
-                // Фильтр по роли
                 if (_filterRole != 'all') {
-                  users = users
-                      .where((u) => u['role'] == _filterRole)
-                      .toList();
+                  users =
+                      users.where((u) => u['role'] == _filterRole).toList();
                 }
 
-                // Фильтр по поиску
                 if (_searchQuery.isNotEmpty) {
                   users = users.where((u) {
                     final name = (u['name'] as String).toLowerCase();
@@ -124,6 +159,14 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                     return name.contains(_searchQuery) ||
                         group.contains(_searchQuery);
                   }).toList();
+                }
+
+                if (_sortBy == 'points') {
+                  users.sort((a, b) => (b['unionPoints'] as int)
+                      .compareTo(a['unionPoints'] as int));
+                } else {
+                  users.sort((a, b) =>
+                      (a['name'] as String).compareTo(b['name'] as String));
                 }
 
                 if (users.isEmpty) {
@@ -143,7 +186,8 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                       group: user['group'] as String,
                       email: user['email'] as String,
                       role: user['role'] as String,
-                      points: int.tryParse(user['unionPoints'].toString()) ?? 0,
+                      points: user['unionPoints'] as int,
+                      rank: _sortBy == 'points' ? i + 1 : null,
                       onRoleChanged: (newRole) async {
                         await FirebaseFirestore.instance
                             .collection('users')
@@ -208,6 +252,7 @@ class _UserRoleCard extends StatelessWidget {
   final String email;
   final String role;
   final int points;
+  final int? rank;
   final Function(String) onRoleChanged;
 
   const _UserRoleCard({
@@ -218,6 +263,7 @@ class _UserRoleCard extends StatelessWidget {
     required this.role,
     required this.points,
     required this.onRoleChanged,
+    this.rank,
   });
 
   Color get _roleColor {
@@ -253,6 +299,13 @@ class _UserRoleCard extends StatelessWidget {
     }
   }
 
+  Color get _pointsColor {
+    if (points >= 100) return Colors.green;
+    if (points >= 50) return AppTheme.accentBlue;
+    if (points >= 20) return Colors.orange;
+    return AppTheme.textMuted;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -273,23 +326,50 @@ class _UserRoleCard extends StatelessWidget {
           padding: const EdgeInsets.all(14),
           child: Row(
             children: [
-              // Аватар с ролью
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _roleColor.withValues(alpha: 0.1),
-                  border: Border.all(
-                    color: _roleColor.withValues(alpha: 0.3),
-                    width: 2,
+              Stack(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: _roleColor.withValues(alpha: 0.1),
+                      border: Border.all(
+                        color: _roleColor.withValues(alpha: 0.3),
+                        width: 2,
+                      ),
+                    ),
+                    child: Icon(_roleIcon, color: _roleColor, size: 24),
                   ),
-                ),
-                child: Icon(_roleIcon, color: _roleColor, size: 24),
+                  if (rank != null && rank! <= 3)
+                    Positioned(
+                      top: -2,
+                      right: -2,
+                      child: Container(
+                        width: 20,
+                        height: 20,
+                        decoration: BoxDecoration(
+                          color: rank == 1
+                              ? AppTheme.gold
+                              : (rank == 2 ? Colors.grey : Colors.brown),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2),
+                        ),
+                        child: Center(
+                          child: Text(
+                            '$rank',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
               const SizedBox(width: 12),
-
-              // Информация
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -302,31 +382,58 @@ class _UserRoleCard extends StatelessWidget {
                         color: AppTheme.textDark,
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 4),
                     Row(
                       children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: _pointsColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                                color: _pointsColor.withValues(alpha: 0.3)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.star,
+                                  color: _pointsColor, size: 14),
+                              const SizedBox(width: 3),
+                              Text(
+                                '$points',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                  color: _pointsColor,
+                                ),
+                              ),
+                              const SizedBox(width: 2),
+                              Text(
+                                'баллов',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: _pointsColor.withValues(alpha: 0.8),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
                         const Icon(Icons.groups_outlined,
                             size: 12, color: AppTheme.textMuted),
-                        const SizedBox(width: 4),
-                        Text(
-                          group,
-                          style: const TextStyle(
-                              fontSize: 12, color: AppTheme.textMuted),
-                        ),
-                        const SizedBox(width: 10),
-                        const Icon(Icons.star,
-                            size: 12, color: AppTheme.gold),
-                        const SizedBox(width: 4),
-                        Text(
-                          '$points',
-                          style: const TextStyle(
-                              fontSize: 12,
-                              color: AppTheme.gold,
-                              fontWeight: FontWeight.w600),
+                        const SizedBox(width: 3),
+                        Flexible(
+                          child: Text(
+                            group,
+                            style: const TextStyle(
+                                fontSize: 12, color: AppTheme.textMuted),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 3),
                     Row(
                       children: [
                         const Icon(Icons.email_outlined,
@@ -345,8 +452,6 @@ class _UserRoleCard extends StatelessWidget {
                   ],
                 ),
               ),
-
-              // Меню выбора роли
               PopupMenuButton<String>(
                 onSelected: onRoleChanged,
                 itemBuilder: (context) => [
@@ -354,7 +459,8 @@ class _UserRoleCard extends StatelessWidget {
                     value: 'student',
                     child: Row(
                       children: [
-                        Icon(Icons.person, color: AppTheme.accentBlue, size: 20),
+                        Icon(Icons.person,
+                            color: AppTheme.accentBlue, size: 20),
                         SizedBox(width: 8),
                         Text('Студент'),
                       ],
@@ -388,8 +494,8 @@ class _UserRoleCard extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: _roleColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                        color: _roleColor.withValues(alpha: 0.3)),
+                    border:
+                    Border.all(color: _roleColor.withValues(alpha: 0.3)),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,

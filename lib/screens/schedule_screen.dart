@@ -60,10 +60,10 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       if (doc.exists) {
         final data = doc.data() as Map<String, dynamic>;
         setState(() {
-          _userGroup = data['group'] ?? 'Б-ПИГМУ-24';
+          _userGroup = (data['group'] as String?)?.trim() ?? 'Б-ПИГМУ-24';
           _isLoading = false;
         });
-        print('✅ Группа загружена: $_userGroup');
+        print('✅ Группа загружена: "$_userGroup"');
       } else {
         setState(() {
           _userGroup = 'Б-ПИГМУ-24';
@@ -145,11 +145,10 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : StreamBuilder<QuerySnapshot>(
-        // ЗАПРОС БЕЗ orderBy — сортировка в Dart
+        // Загружаем только занятия этой группы
         stream: FirebaseFirestore.instance
             .collection('lessons')
             .where('group', isEqualTo: _userGroup)
-            .where('dayIndex', isEqualTo: _selectedDay)
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -157,6 +156,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
           }
 
           if (snapshot.hasError) {
+            print('❌ Firestore ошибка: ${snapshot.error}');
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -176,19 +176,30 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
           }
 
           final docs = snapshot.data?.docs ?? [];
+          print('📊 Firestore вернул: ${docs.length} документов группы $_userGroup');
 
-          // Все фильтры и сортировка — в Dart
+          // ФИЛЬТР ПО ДНЮ И НЕДЕЛЕ В DART
           final lessons = docs
               .map((doc) => Lesson.fromMap(
               doc.id, doc.data() as Map<String, dynamic>))
               .where((lesson) {
-            if (_selectedWeek == 0) return lesson.week == 0;
-            return lesson.week == 0 ||
-                lesson.week == _selectedWeek;
+            final dayMatch = lesson.dayIndex == _selectedDay;
+            final weekMatch = _selectedWeek == 0
+                ? lesson.week == 0
+                : (lesson.week == 0 ||
+                lesson.week == _selectedWeek);
+
+            // Логи для отладки
+            if (dayMatch) {
+              print('  📄 ${lesson.subject} | day=${lesson.dayIndex} | week=${lesson.week} | show=${dayMatch && weekMatch}');
+            }
+
+            return dayMatch && weekMatch;
           })
               .toList();
 
-          // СОРТИРУЕМ ПО ВРЕМЕНИ В DART
+          print('📊 После фильтра (день=$_selectedDay, неделя=$_selectedWeek): ${lessons.length}');
+
           lessons.sort((a, b) => a.startTime.compareTo(b.startTime));
 
           if (lessons.isEmpty) {

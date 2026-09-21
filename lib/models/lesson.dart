@@ -35,7 +35,7 @@ class Lesson {
   final String type;
   final int dayIndex;
   final String group;
-  final int week; // 0 - общая, 1 - нечетная, 2 - четная
+  final int week;
 
   const Lesson({
     required this.id,
@@ -63,17 +63,20 @@ class Lesson {
   }
 
   factory Lesson.fromMap(String id, Map<String, dynamic> map) {
+    // ПОДДЕРЖКА ОБОИХ ВАРИАНТОВ: dayIndex и dayindex
+    final dayIndexRaw = map['dayIndex'] ?? map['dayindex'];
+    final weekRaw = map['week'] ?? map['Week'];
+
     return Lesson(
       id: id,
-      time: map['time'] ?? '',
-      subject: map['subject'] ?? '',
-      room: map['room'] ?? '',
-      teacher: map['teacher'] ?? '',
-      type: map['type'] ?? '',
-      dayIndex: int.tryParse(map['dayIndex']?.toString() ?? '0') ?? 0,
-      group: map['group'] ?? '',
-      // ВАЖНО: конвертируем строку в число
-      week: int.tryParse(map['week']?.toString() ?? '0') ?? 0,
+      time: (map['time'] ?? '').toString().trim(),
+      subject: (map['subject'] ?? '').toString().trim(),
+      room: (map['room'] ?? '').toString().trim(),
+      teacher: (map['teacher'] ?? '').toString().trim(),
+      type: (map['type'] ?? '').toString().trim(),
+      dayIndex: int.tryParse(dayIndexRaw?.toString().trim() ?? '0') ?? 0,
+      group: (map['group'] ?? '').toString().trim(),
+      week: int.tryParse(weekRaw?.toString().trim() ?? '0') ?? 0,
     );
   }
 
