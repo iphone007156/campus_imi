@@ -1,5 +1,5 @@
 {
-  "project": "git add .",
+  "project": "campus_imi",
   "platform": "ios",
   "github": {
     "owner": "iphone007156",
@@ -9,11 +9,12 @@
   "codemagic": {},
   "bitrise": {},
   "ios": {
+    "path": "ios",
     "bundleId": "com.example.campusImi",
     "configuration": "Release"
   },
   "flutter": {
-    "version": "git add .",
+    "version": "3.44.1",
     "watch": {}
   },
   "reactNative": {},
