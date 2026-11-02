@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../theme/app_theme.dart';
+import '../models/group_models.dart';
 
 class AdminUsersScreen extends StatefulWidget {
   const AdminUsersScreen({super.key});
@@ -11,8 +12,9 @@ class AdminUsersScreen extends StatefulWidget {
 
 class _AdminUsersScreenState extends State<AdminUsersScreen> {
   String _searchQuery = '';
-  String _filterRole = 'all';
-  String _sortBy = 'name'; // 'name' | 'points'
+  String _sortBy = 'name';
+  String _selectedRoleFilter = 'Все';
+  final List<String> _roleFilters = ['Все', 'Студент', 'Староста', 'Заместитель', 'Активист', 'Админ'];
 
   @override
   Widget build(BuildContext context) {
@@ -25,175 +27,122 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
             tooltip: 'Сортировка',
             onSelected: (value) => setState(() => _sortBy = value),
             itemBuilder: (context) => [
-              PopupMenuItem(
-                value: 'name',
-                child: Row(
-                  children: [
-                    Icon(
-                      _sortBy == 'name'
-                          ? Icons.radio_button_checked
-                          : Icons.radio_button_off,
-                      size: 20,
-                      color: AppTheme.accentBlue,
-                    ),
-                    const SizedBox(width: 8),
-                    const Text('По имени'),
-                  ],
-                ),
-              ),
-              PopupMenuItem(
-                value: 'points',
-                child: Row(
-                  children: [
-                    Icon(
-                      _sortBy == 'points'
-                          ? Icons.radio_button_checked
-                          : Icons.radio_button_off,
-                      size: 20,
-                      color: AppTheme.gold,
-                    ),
-                    const SizedBox(width: 8),
-                    const Text('По баллам'),
-                  ],
-                ),
-              ),
+              const PopupMenuItem(value: 'name', child: Text('По имени')),
+              const PopupMenuItem(value: 'points', child: Text('По баллам')),
             ],
           ),
         ],
       ),
-      backgroundColor: AppTheme.backgroundGray,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
         children: [
           Container(
-            color: AppTheme.cardWhite,
+            color: Theme.of(context).cardColor,
             padding: const EdgeInsets.all(12),
             child: TextField(
               decoration: InputDecoration(
-                hintText: 'Поиск по имени или группе...',
+                hintText: 'Поиск по имени, группе или подразделению...',
                 prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                 isDense: true,
               ),
-              onChanged: (value) {
-                setState(() => _searchQuery = value.toLowerCase());
-              },
+              onChanged: (value) => setState(() => _searchQuery = value.toLowerCase()),
             ),
           ),
           Container(
-            color: AppTheme.cardWhite,
-            padding: const EdgeInsets.only(bottom: 10),
+            color: Theme.of(context).cardColor,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _RoleFilterChip(
-                  label: 'Все',
-                  selected: _filterRole == 'all',
-                  onTap: () => setState(() => _filterRole = 'all'),
-                ),
-                _RoleFilterChip(
-                  label: '👤 Студенты',
-                  selected: _filterRole == 'student',
-                  onTap: () => setState(() => _filterRole = 'student'),
-                ),
-                _RoleFilterChip(
-                  label: '⭐ Активисты',
-                  selected: _filterRole == 'activist',
-                  onTap: () => setState(() => _filterRole = 'activist'),
-                ),
-                _RoleFilterChip(
-                  label: '🔑 Админы',
-                  selected: _filterRole == 'admin',
-                  onTap: () => setState(() => _filterRole = 'admin'),
+                const Text('Роль:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _selectedRoleFilter,
+                      isExpanded: true,
+                      dropdownColor: Theme.of(context).cardColor,
+                      items: _roleFilters.map((role) {
+                        return DropdownMenuItem(value: role, child: Text(role, style: const TextStyle(fontSize: 13)));
+                      }).toList(),
+                      onChanged: (v) {
+                        if (v != null) setState(() => _selectedRoleFilter = v);
+                      },
+                    ),
+                  ),
                 ),
               ],
             ),
           ),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('users')
-                  .orderBy('name')
-                  .snapshots(),
+              stream: FirebaseFirestore.instance.collection('users').orderBy('name').snapshots(),
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Text('Ошибка: ${snapshot.error}'),
-                  );
-                }
-
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return const Center(
-                    child: Text('Нет пользователей'),
-                  );
-                }
+                if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
 
                 var users = snapshot.data!.docs.map((doc) {
                   final data = doc.data() as Map<String, dynamic>;
+                  List<GroupRole> roles = [];
+                  if (data['roles'] is List) {
+                    roles = rolesFromStringList(data['roles']);
+                  } else if (data['groupRole'] != null) {
+                    roles = [roleFromString(data['groupRole'] as String?)];
+                  } else {
+                    roles = [GroupRole.student];
+                  }
+                  if (data['role'] == 'admin' && !roles.contains(GroupRole.admin)) {
+                    roles.add(GroupRole.admin);
+                  }
+
                   return {
                     'uid': doc.id,
                     'name': data['name'] ?? 'Без имени',
-                    'group': data['group'] ?? '—',
-                    'email': data['email'] ?? '—',
-                    'role': data['role']?.toString() ?? 'student',
-                    'unionPoints':
-                    int.tryParse(data['unionPoints']?.toString() ?? '0') ??
-                        0,
+                    'group': data['group'] ?? '---',
+                    'departmentId': data['departmentId'] ?? '',
+                    'institute': data['institute'] ?? '---',
+                    'email': data['email'] ?? '---',
+                    'roles': roles,
+                    'unionPoints': int.tryParse(data['unionPoints']?.toString() ?? '0') ?? 0,
                   };
                 }).toList();
 
-                if (_filterRole != 'all') {
-                  users =
-                      users.where((u) => u['role'] == _filterRole).toList();
+                if (_searchQuery.isNotEmpty) {
+                  users = users.where((u) =>
+                  (u['name'] as String).toLowerCase().contains(_searchQuery) ||
+                      (u['group'] as String).toLowerCase().contains(_searchQuery) ||
+                      (u['institute'] as String).toLowerCase().contains(_searchQuery)).toList();
                 }
 
-                if (_searchQuery.isNotEmpty) {
+                if (_selectedRoleFilter != 'Все') {
                   users = users.where((u) {
-                    final name = (u['name'] as String).toLowerCase();
-                    final group = (u['group'] as String).toLowerCase();
-                    return name.contains(_searchQuery) ||
-                        group.contains(_searchQuery);
+                    final List<GroupRole> roles = u['roles'];
+                    if (_selectedRoleFilter == 'Админ') return roles.contains(GroupRole.admin);
+                    if (_selectedRoleFilter == 'Активист') return roles.contains(GroupRole.activist);
+                    if (_selectedRoleFilter == 'Староста') return roles.contains(GroupRole.head);
+                    if (_selectedRoleFilter == 'Заместитель') return roles.contains(GroupRole.deputy);
+                    if (_selectedRoleFilter == 'Студент') return roles.every((r) => r == GroupRole.student);
+                    return true;
                   }).toList();
                 }
 
                 if (_sortBy == 'points') {
-                  users.sort((a, b) => (b['unionPoints'] as int)
-                      .compareTo(a['unionPoints'] as int));
+                  users.sort((a, b) => (b['unionPoints'] as int).compareTo(a['unionPoints'] as int));
                 } else {
-                  users.sort((a, b) =>
-                      (a['name'] as String).compareTo(b['name'] as String));
+                  users.sort((a, b) => (a['name'] as String).compareTo(b['name'] as String));
                 }
 
-                if (users.isEmpty) {
-                  return const Center(
-                    child: Text('Пользователи не найдены'),
-                  );
-                }
+                if (users.isEmpty) return const Center(child: Text('Пользователи не найдены'));
 
                 return ListView.builder(
                   padding: const EdgeInsets.all(16),
                   itemCount: users.length,
                   itemBuilder: (context, i) {
                     final user = users[i];
-                    return _UserRoleCard(
-                      uid: user['uid'] as String,
-                      name: user['name'] as String,
-                      group: user['group'] as String,
-                      email: user['email'] as String,
-                      role: user['role'] as String,
-                      points: user['unionPoints'] as int,
-                      rank: _sortBy == 'points' ? i + 1 : null,
-                      onRoleChanged: (newRole) async {
-                        await FirebaseFirestore.instance
-                            .collection('users')
-                            .doc(user['uid'])
-                            .update({'role': newRole});
-                      },
+                    return _UserCard(
+                      user: user,
+                      onEditRoles: () => _showRoleEditor(context, user),
+                      onEditPoints: () => _showPointsEditor(context, user),
+                      onEditGroup: () => _showGroupEditor(context, user), // ✅ Новое
                     );
                   },
                 );
@@ -204,319 +153,320 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
       ),
     );
   }
-}
 
-// ===== ФИЛЬТР ПО РОЛИ =====
-class _RoleFilterChip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
+  // ✅ ДИАЛОГ СМЕНЫ ГРУППЫ ДЛЯ АДМИНА
+  void _showGroupEditor(BuildContext context, Map<String, dynamic> user) {
+    String? selectedDeptId = user['departmentId'];
+    String? selectedGroup = user['group'];
 
-  const _RoleFilterChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: Text('Группа: ${user['name']}'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Выбор института
+                  StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance.collection('departments').orderBy('shortName').snapshots(),
+                    builder: (context, snap) {
+                      if (!snap.hasData) return const LinearProgressIndicator();
+                      final depts = snap.data!.docs;
+                      return DropdownButtonFormField<String>(
+                        decoration: const InputDecoration(labelText: 'Подразделение'),
+                        value: selectedDeptId,
+                        dropdownColor: Theme.of(context).cardColor,
+                        items: depts.map((d) => DropdownMenuItem(
+                          value: d.id,
+                          child: Text((d.data() as Map<String, dynamic>?)?['shortName'] ?? d.id),
+                        )).toList(),
+                        onChanged: (v) {
+                          setState(() {
+                            selectedDeptId = v;
+                            selectedGroup = null; // сброс группы
+                          });
+                        },
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 16),
 
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: selected ? AppTheme.primaryNavy : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: selected ? AppTheme.primaryNavy : AppTheme.divider,
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: selected ? Colors.white : AppTheme.textDark,
-            fontSize: 11,
-            fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-          ),
-        ),
+                  // Выбор группы
+                  if (selectedDeptId != null)
+                    StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection('groups')
+                          .where('departmentId', isEqualTo: selectedDeptId)
+                          .snapshots(),
+                      builder: (context, snap) {
+                        if (!snap.hasData) return const LinearProgressIndicator();
+                        final groups = snap.data!.docs.map((d) => d['name'] as String).toList();
+
+                        if (groups.isEmpty) return const Text('Нет групп в этом подразделении');
+
+                        return DropdownButtonFormField<String>(
+                          decoration: const InputDecoration(labelText: 'Группа'),
+                          value: groups.contains(selectedGroup) ? selectedGroup : null,
+                          dropdownColor: Theme.of(context).cardColor,
+                          items: groups.map((g) => DropdownMenuItem(
+                            value: g,
+                            child: Text(g),
+                          )).toList(),
+                          onChanged: (v) => setState(() => selectedGroup = v),
+                        );
+                      },
+                    ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Отмена'),
+              ),
+              FilledButton(
+                onPressed: () async {
+                  if (selectedGroup == null || selectedDeptId == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Выберите институт и группу'), backgroundColor: Colors.red),
+                    );
+                    return;
+                  }
+
+                  final deptDoc = await FirebaseFirestore.instance.collection('departments').doc(selectedDeptId).get();
+                  final deptName = deptDoc.data()?['name'] ?? '';
+
+                  await FirebaseFirestore.instance.collection('users').doc(user['uid']).update({
+                    'group': selectedGroup,
+                    'departmentId': selectedDeptId,
+                    'institute': deptName,
+                  });
+
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('✅ Группа обновлена'), backgroundColor: Colors.green),
+                    );
+                  }
+                },
+                child: const Text('Сохранить'),
+              ),
+            ],
+          );
+        },
       ),
+    );
+  }
+
+  void _showRoleEditor(BuildContext context, Map<String, dynamic> user) {
+    final List<GroupRole> currentRoles = List.from(user['roles']);
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: Text('Роли: ${user['name']}'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: GroupRole.values.map((role) {
+                    if (role == GroupRole.student) return const SizedBox.shrink();
+                    return CheckboxListTile(
+                      title: Text(role.title),
+                      value: currentRoles.contains(role),
+                      onChanged: (val) {
+                        setState(() {
+                          if (val == true) {
+                            currentRoles.add(role);
+                          } else {
+                            currentRoles.remove(role);
+                          }
+                        });
+                      },
+                    );
+                  }).toList(),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Отмена'),
+                ),
+                FilledButton(
+                  onPressed: () async {
+                    if (currentRoles.isEmpty) currentRoles.add(GroupRole.student);
+
+                    final updates = <String, dynamic>{
+                      'roles': currentRoles.map((r) => r.key).toList(),
+                    };
+
+                    if (currentRoles.contains(GroupRole.head)) {
+                      updates['groupRole'] = 'head';
+                    } else if (currentRoles.contains(GroupRole.deputy)) {
+                      updates['groupRole'] = 'deputy';
+                    } else {
+                      updates['groupRole'] = 'student';
+                    }
+
+                    if (currentRoles.contains(GroupRole.admin)) {
+                      updates['role'] = 'admin';
+                    } else {
+                      updates['role'] = 'student';
+                    }
+
+                    await FirebaseFirestore.instance
+                        .collection('users')
+                        .doc(user['uid'])
+                        .update(updates);
+
+                    if (context.mounted) Navigator.pop(context);
+                  },
+                  child: const Text('Сохранить'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showPointsEditor(BuildContext context, Map<String, dynamic> user) {
+    final TextEditingController controller = TextEditingController(text: user['unionPoints'].toString());
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Баллы: ${user['name']}'),
+          content: TextField(
+            controller: controller,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'Количество баллов',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Отмена'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                final newPoints = int.tryParse(controller.text) ?? 0;
+                await FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(user['uid'])
+                    .update({'unionPoints': newPoints});
+                if (context.mounted) Navigator.pop(context);
+              },
+              child: const Text('Сохранить'),
+            ),
+          ],
+        );
+      },
     );
   }
 }
 
-// ===== КАРТОЧКА ПОЛЬЗОВАТЕЛЯ =====
-class _UserRoleCard extends StatelessWidget {
-  final String uid;
-  final String name;
-  final String group;
-  final String email;
-  final String role;
-  final int points;
-  final int? rank;
-  final Function(String) onRoleChanged;
+class _UserCard extends StatelessWidget {
+  final Map<String, dynamic> user;
+  final VoidCallback onEditRoles;
+  final VoidCallback onEditPoints;
+  final VoidCallback onEditGroup; // ✅ Новый коллбэк
 
-  const _UserRoleCard({
-    required this.uid,
-    required this.name,
-    required this.group,
-    required this.email,
-    required this.role,
-    required this.points,
-    required this.onRoleChanged,
-    this.rank,
+  const _UserCard({
+    required this.user,
+    required this.onEditRoles,
+    required this.onEditPoints,
+    required this.onEditGroup,
   });
-
-  Color get _roleColor {
-    switch (role) {
-      case 'admin':
-        return Colors.red;
-      case 'activist':
-        return Colors.green;
-      default:
-        return AppTheme.accentBlue;
-    }
-  }
-
-  String get _roleLabel {
-    switch (role) {
-      case 'admin':
-        return 'Админ';
-      case 'activist':
-        return 'Активист';
-      default:
-        return 'Студент';
-    }
-  }
-
-  IconData get _roleIcon {
-    switch (role) {
-      case 'admin':
-        return Icons.admin_panel_settings;
-      case 'activist':
-        return Icons.star;
-      default:
-        return Icons.person;
-    }
-  }
-
-  Color get _pointsColor {
-    if (points >= 100) return Colors.green;
-    if (points >= 50) return AppTheme.accentBlue;
-    if (points >= 20) return Colors.orange;
-    return AppTheme.textMuted;
-  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: Material(
-        color: AppTheme.cardWhite,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: role == 'student'
-                  ? AppTheme.divider
-                  : _roleColor.withValues(alpha: 0.3),
-              width: role == 'student' ? 1 : 1.5,
-            ),
-          ),
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            children: [
-              Stack(
-                children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: _roleColor.withValues(alpha: 0.1),
-                      border: Border.all(
-                        color: _roleColor.withValues(alpha: 0.3),
-                        width: 2,
-                      ),
-                    ),
-                    child: Icon(_roleIcon, color: _roleColor, size: 24),
-                  ),
-                  if (rank != null && rank! <= 3)
-                    Positioned(
-                      top: -2,
-                      right: -2,
-                      child: Container(
-                        width: 20,
-                        height: 20,
-                        decoration: BoxDecoration(
-                          color: rank == 1
-                              ? AppTheme.gold
-                              : (rank == 2 ? Colors.grey : Colors.brown),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 2),
-                        ),
-                        child: Center(
-                          child: Text(
-                            '$rank',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      name,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.textDark,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: _pointsColor.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                                color: _pointsColor.withValues(alpha: 0.3)),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.star,
-                                  color: _pointsColor, size: 14),
-                              const SizedBox(width: 3),
-                              Text(
-                                '$points',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w800,
-                                  color: _pointsColor,
-                                ),
-                              ),
-                              const SizedBox(width: 2),
-                              Text(
-                                'баллов',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: _pointsColor.withValues(alpha: 0.8),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        const Icon(Icons.groups_outlined,
-                            size: 12, color: AppTheme.textMuted),
-                        const SizedBox(width: 3),
-                        Flexible(
-                          child: Text(
-                            group,
-                            style: const TextStyle(
-                                fontSize: 12, color: AppTheme.textMuted),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 3),
-                    Row(
-                      children: [
-                        const Icon(Icons.email_outlined,
-                            size: 12, color: AppTheme.textMuted),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            email,
-                            style: const TextStyle(
-                                fontSize: 11, color: AppTheme.textMuted),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              PopupMenuButton<String>(
-                onSelected: onRoleChanged,
-                itemBuilder: (context) => [
-                  const PopupMenuItem(
-                    value: 'student',
-                    child: Row(
-                      children: [
-                        Icon(Icons.person,
-                            color: AppTheme.accentBlue, size: 20),
-                        SizedBox(width: 8),
-                        Text('Студент'),
-                      ],
-                    ),
-                  ),
-                  const PopupMenuItem(
-                    value: 'activist',
-                    child: Row(
-                      children: [
-                        Icon(Icons.star, color: Colors.green, size: 20),
-                        SizedBox(width: 8),
-                        Text('Активист'),
-                      ],
-                    ),
-                  ),
-                  const PopupMenuItem(
-                    value: 'admin',
-                    child: Row(
-                      children: [
-                        Icon(Icons.admin_panel_settings,
-                            color: Colors.red, size: 20),
-                        SizedBox(width: 8),
-                        Text('Админ'),
-                      ],
-                    ),
-                  ),
-                ],
-                child: Container(
-                  padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: _roleColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(20),
-                    border:
-                    Border.all(color: _roleColor.withValues(alpha: 0.3)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
+    final List<GroupRole> roles = user['roles'];
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      color: Theme.of(context).cardColor,
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const CircleAvatar(child: Icon(Icons.person)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        _roleLabel,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: _roleColor,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(width: 2),
-                      Icon(Icons.arrow_drop_down,
-                          color: _roleColor, size: 16),
+                      Text(user['name'], style: Theme.of(context).textTheme.titleMedium),
+                      Text('Группа: ${user['group']}', style: Theme.of(context).textTheme.bodySmall),
+                      Text(user['institute'], style: Theme.of(context).textTheme.bodySmall),
                     ],
                   ),
                 ),
-              ),
-            ],
-          ),
+                InkWell(
+                  onTap: onEditPoints,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppTheme.gold.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppTheme.gold.withValues(alpha: 0.5)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.star, color: AppTheme.gold, size: 16),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${user['unionPoints']}',
+                          style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.gold),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 4,
+              runSpacing: 4,
+              children: roles.map((r) => Chip(
+                label: Text(r.title, style: const TextStyle(fontSize: 10)),
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              )).toList(),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton.icon(
+                  onPressed: onEditGroup,
+                  icon: const Icon(Icons.swap_horiz, size: 16),
+                  label: const Text('Сменить группу'),
+                ),
+                const SizedBox(width: 8),
+                TextButton.icon(
+                  onPressed: onEditRoles,
+                  icon: const Icon(Icons.edit, size: 16),
+                  label: const Text('Роли'),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );

@@ -4,9 +4,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:convert';
 import '../theme/app_theme.dart';
 import '../models/news_model.dart';
-import '../services/news_service.dart';
 import 'news_detail_screen.dart';
 import 'add_news_screen.dart';
+import '../services/news_service.dart';
 
 class NewsScreen extends StatefulWidget {
   const NewsScreen({super.key});
@@ -17,19 +17,40 @@ class NewsScreen extends StatefulWidget {
 
 class _NewsScreenState extends State<NewsScreen> {
   final NewsService _newsService = NewsService();
-  final TextEditingController _searchController = TextEditingController();
-
+  final _searchController = TextEditingController();
   String _searchQuery = '';
   String _selectedCategory = 'Все';
+  String? _userDeptId;
 
-  static const List<String> _categories = [
-    'Все',
-    'Trending',
-    'Спорт',
-    'Учёба',
-    'События',
-    'Культура',
-  ];
+  // ✅ По умолчанию показываем ТОЛЬКО новости своего подразделения
+  bool _showOnlyMyDept = true;
+  bool _isAdmin = false;
+
+  final List<String> _categories = ['Все', 'Trending', 'Спорт', 'Учёба', 'События', 'Культура'];
+
+  @override
+  void initState() {
+    super.initState();
+    _checkUser();
+  }
+
+  Future<void> _checkUser() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      if (doc.exists) {
+        if (mounted) {
+          setState(() {
+            _isAdmin = doc.data()?['role'] == 'admin';
+            _userDeptId = doc.data()?['departmentId'];
+            // Если у пользователя нет departmentId (старый аккаунт),
+            // принудительно показываем "Все новости", чтобы он не видел пустой экран
+            if (_userDeptId == null) _showOnlyMyDept = false;
+          });
+        }
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -37,177 +58,224 @@ class _NewsScreenState extends State<NewsScreen> {
     super.dispose();
   }
 
+  Future<void> _showOptionsDialog(News news) async {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit, color: AppTheme.accentBlue),
+              title: const Text('Редактировать'),
+              onTap: () async {
+                Navigator.pop(context);
+                final result = await Navigator.push(context, MaterialPageRoute(builder: (_) => AddNewsScreen(news: news)));
+                if (result == true && mounted) setState(() {});
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete, color: Colors.red),
+              title: const Text('Удалить', style: TextStyle(color: Colors.red)),
+              onTap: () async {
+                Navigator.pop(context);
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Удалить новость?'),
+                    content: const Text('Это действие нельзя отменить.'),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Отмена')),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                        onPressed: () => Navigator.pop(context, true),
+                        child: const Text('Удалить'),
+                      ),
+                    ],
+                  ),
+                );
+
+                if (confirm == true) {
+                  await _newsService.deleteNews(news.id);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Новость удалена'), backgroundColor: Colors.green));
+                  }
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.backgroundGray,
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, size: 18),
-          onPressed: () => Navigator.pop(context),
-        ),
+        leading: IconButton(icon: const Icon(Icons.arrow_back_ios_new, size: 18), onPressed: () => Navigator.pop(context)),
         title: const Text('Новости'),
         actions: [
-          if (FirebaseAuth.instance.currentUser != null)
-            FutureBuilder<DocumentSnapshot>(
-              future: FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(FirebaseAuth.instance.currentUser!.uid)
-                  .get(),
-              builder: (context, snapshot) {
-                if (snapshot.hasData && snapshot.data!.exists) {
-                  final data = snapshot.data!.data() as Map<String, dynamic>?;
-                  if (data?['role'] == 'admin') {
-                    return IconButton(
-                      icon: const Icon(Icons.add_circle_outline),
-                      tooltip: 'Добавить новость',
-                      onPressed: () async {
-                        final result = await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const AddNewsScreen(),
-                          ),
-                        );
-                        if (result == true) setState(() {});
-                      },
-                    );
-                  }
-                }
-                return const SizedBox.shrink();
+          if (_isAdmin)
+            IconButton(
+              icon: const Icon(Icons.add_circle_outline),
+              onPressed: () async {
+                await Navigator.push(context, MaterialPageRoute(builder: (_) => const AddNewsScreen()));
+                if (mounted) setState(() {});
               },
             ),
         ],
       ),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor, // ✅ Динамический фон
       body: Column(
         children: [
           Container(
-            color: AppTheme.cardWhite,
+            color: Theme.of(context).cardColor, // ✅ Динамический цвет панели
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Поиск новостей...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchQuery.isNotEmpty
-                    ? IconButton(
-                  icon: const Icon(Icons.clear),
-                  onPressed: () {
-                    _searchController.clear();
-                    setState(() => _searchQuery = '');
-                  },
-                )
-                    : null,
-                filled: true,
-                fillColor: AppTheme.backgroundGray,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(30),
-                  borderSide: BorderSide.none,
+            child: Column(
+              children: [
+                TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText: 'Поиск новостей...',
+                    prefixIcon: Icon(Icons.search, color: Theme.of(context).textTheme.bodySmall?.color),
+                    fillColor: Theme.of(context).scaffoldBackgroundColor, // ✅ Динамический цвет поля
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                  onChanged: (value) => setState(() => _searchQuery = value.toLowerCase()),
                 ),
-                contentPadding: const EdgeInsets.symmetric(vertical: 0),
-              ),
-              onChanged: (value) {
-                setState(() => _searchQuery = value.toLowerCase());
-              },
-            ),
-          ),
-          Container(
-            color: AppTheme.cardWhite,
-            padding: const EdgeInsets.only(bottom: 10),
-            child: SizedBox(
-              height: 40,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                itemCount: _categories.length,
-                itemBuilder: (context, i) {
-                  final cat = _categories[i];
-                  final selected = cat == _selectedCategory;
-                  return GestureDetector(
-                    onTap: () => setState(() => _selectedCategory = cat),
-                    child: Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: selected
-                            ? AppTheme.primaryNavy
-                            : AppTheme.backgroundGray,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Center(
-                        child: Text(
-                          cat,
+                const SizedBox(height: 12),
+
+                // ✅ Переключатель "Мое / Все"
+                if (_userDeptId != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).scaffoldBackgroundColor,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          _showOnlyMyDept ? 'Только мое подразделение' : 'Все новости',
                           style: TextStyle(
-                            color:
-                            selected ? Colors.white : AppTheme.textDark,
                             fontSize: 13,
-                            fontWeight: selected
-                                ? FontWeight.w700
-                                : FontWeight.w500,
+                            fontWeight: FontWeight.w600,
+                            color: Theme.of(context).textTheme.titleMedium?.color,
                           ),
                         ),
-                      ),
+                        Switch(
+                          value: _showOnlyMyDept,
+                          onChanged: (v) => setState(() => _showOnlyMyDept = v),
+                          activeColor: Theme.of(context).colorScheme.primary,
+                        ),
+                      ],
                     ),
-                  );
-                },
-              ),
+                  ),
+
+                const SizedBox(height: 12),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: _categories.map((c) {
+                      final isSelected = _selectedCategory == c;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ChoiceChip(
+                          label: Text(c),
+                          selected: isSelected,
+                          onSelected: (val) { if (val) setState(() => _selectedCategory = c); },
+                          // ✅ Динамические цвета для чипсов
+                          selectedColor: Theme.of(context).colorScheme.primary,
+                          backgroundColor: Theme.of(context).cardColor,
+                          labelStyle: TextStyle(
+                            color: isSelected
+                                ? Colors.white
+                                : Theme.of(context).textTheme.bodyMedium?.color,
+                            fontSize: 13,
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
             ),
           ),
+
           Expanded(
             child: StreamBuilder<List<News>>(
               stream: _newsService.getNews(),
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+                if (snapshot.hasError) return Center(child: Text('Ошибка: ${snapshot.error}'));
+
+                var newsList = snapshot.data ?? [];
+
+                // ✅ Фильтр по подразделению
+                if (_showOnlyMyDept && _userDeptId != null) {
+                  newsList = newsList.where((n) =>
+                  n.departmentId == _userDeptId ||
+                      n.departmentId.isEmpty // Пустой ID = общая новость для всех
+                  ).toList();
                 }
-                if (snapshot.hasError) {
+
+                if (_selectedCategory != 'Все') {
+                  newsList = newsList.where((n) => n.category == _selectedCategory).toList();
+                }
+                if (_searchQuery.isNotEmpty) {
+                  newsList = newsList.where((n) =>
+                  n.title.toLowerCase().contains(_searchQuery) ||
+                      n.body.toLowerCase().contains(_searchQuery)).toList();
+                }
+
+                if (newsList.isEmpty) {
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.error_outline,
-                            size: 48, color: Colors.red),
-                        const SizedBox(height: 12),
-                        Text('Ошибка: ${snapshot.error}'),
+                        Icon(
+                          Icons.newspaper,
+                          size: 64,
+                          color: Theme.of(context).textTheme.bodySmall?.color?.withValues(alpha: 0.5), // ✅ Динамический цвет
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          _showOnlyMyDept ? 'Новостей для вашего подразделения пока нет' : 'Новостей пока нет',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Theme.of(context).textTheme.bodySmall?.color, // ✅ Динамический цвет
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        if (_showOnlyMyDept) ...[
+                          const SizedBox(height: 8),
+                          TextButton(
+                            onPressed: () => setState(() => _showOnlyMyDept = false),
+                            child: const Text('Показать все новости'),
+                          ),
+                        ],
                       ],
                     ),
                   );
                 }
 
-                var news = snapshot.data ?? [];
-
-                if (_selectedCategory != 'Все') {
-                  news = news
-                      .where((n) => n.category == _selectedCategory)
-                      .toList();
-                }
-
-                if (_searchQuery.isNotEmpty) {
-                  news = news.where((n) {
-                    return n.title.toLowerCase().contains(_searchQuery) ||
-                        n.body.toLowerCase().contains(_searchQuery) ||
-                        n.shortDescription
-                            .toLowerCase()
-                            .contains(_searchQuery);
-                  }).toList();
-                }
-
-                if (news.isEmpty) return _buildEmptyState();
-
-                return ListView.builder(
+                return ListView.separated(
                   padding: const EdgeInsets.all(16),
-                  itemCount: news.length,
-                  itemBuilder: (context, i) => _NewsCard(
-                    news: news[i],
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => NewsDetailScreen(news: news[i]),
-                        ),
-                      );
-                    },
-                  ),
+                  itemCount: newsList.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 16),
+                  itemBuilder: (context, i) {
+                    final news = newsList[i];
+                    return GestureDetector(
+                      onLongPress: _isAdmin ? () => _showOptionsDialog(news) : null,
+                      child: _NewsCard(
+                        news: news,
+                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => NewsDetailScreen(news: news))).then((_) => setState(() {})),
+                      ),
+                    );
+                  },
                 );
               },
             ),
@@ -216,233 +284,96 @@ class _NewsScreenState extends State<NewsScreen> {
       ),
     );
   }
-
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            _searchQuery.isNotEmpty
-                ? Icons.search_off
-                : Icons.newspaper_outlined,
-            size: 64,
-            color: AppTheme.textMuted,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            _searchQuery.isNotEmpty
-                ? 'Ничего не найдено'
-                : 'Новостей пока нет',
-            style: const TextStyle(fontSize: 18, color: AppTheme.textMuted),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _searchQuery.isNotEmpty
-                ? 'Попробуйте другой запрос'
-                : 'Загляните позже',
-            style: TextStyle(
-              fontSize: 13,
-              color: AppTheme.textMuted.withValues(alpha: 0.7),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
-// ===== КАРТОЧКА НОВОСТИ =====
 class _NewsCard extends StatelessWidget {
   final News news;
   final VoidCallback onTap;
-
   const _NewsCard({required this.news, required this.onTap});
 
-  Widget _buildImage() {
-    if (news.imageUrl.isNotEmpty) {
-      return Image.network(
-        news.imageUrl,
-        fit: BoxFit.cover,
-        cacheWidth: 400,
-        loadingBuilder: (context, child, loadingProgress) {
-          if (loadingProgress == null) return child;
-          return Container(
-            color: AppTheme.lightBlue,
-            child: Center(
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: AppTheme.accentBlue,
-                value: loadingProgress.expectedTotalBytes != null
-                    ? loadingProgress.cumulativeBytesLoaded /
-                    loadingProgress.expectedTotalBytes!
-                    : null,
-              ),
-            ),
-          );
-        },
-        frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-          if (wasSynchronouslyLoaded) return child;
-          return AnimatedOpacity(
-            opacity: frame == null ? 0 : 1,
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeOut,
-            child: child,
-          );
-        },
-        errorBuilder: (_, __, ___) => _buildPlaceholder(),
-      );
-    }
-    if (news.imageBase64.isNotEmpty) {
+  Widget _buildImageWidget() {
+    if (news.mainImage.startsWith('http')) {
+      return Image.network(news.mainImage, fit: BoxFit.contain, errorBuilder: (_, __, ___) => _placeholder());
+    } else {
       try {
-        return Image.memory(
-          base64Decode(news.imageBase64),
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _buildPlaceholder(),
-        );
-      } catch (e) {
-        return _buildPlaceholder();
+        return Image.memory(base64Decode(news.mainImage), fit: BoxFit.contain, errorBuilder: (_, __, ___) => _placeholder());
+      } catch (_) {
+        return _placeholder();
       }
     }
-    return _buildPlaceholder();
   }
 
-  Widget _buildPlaceholder() {
+  Widget _placeholder() {
     return Container(
+      height: 200,
+      width: double.infinity,
       color: AppTheme.lightBlue,
-      child: const Center(
-        child: Icon(Icons.newspaper, size: 40, color: AppTheme.accentBlue),
-      ),
+      child: const Center(child: Icon(Icons.newspaper, size: 40, color: AppTheme.accentBlue)),
     );
-  }
-
-  Color get _categoryColor {
-    switch (news.category) {
-      case 'Trending':
-        return Colors.red;
-      case 'Спорт':
-        return Colors.orange;
-      case 'Учёба':
-        return AppTheme.accentBlue;
-      case 'События':
-        return Colors.purple;
-      case 'Культура':
-        return Colors.teal;
-      default:
-        return AppTheme.textMuted;
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor, // ✅ Динамический цвет карточки
+        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+        boxShadow: AppTheme.shadowSoft,
+      ),
       child: Material(
-        color: AppTheme.cardWhite,
-        borderRadius: BorderRadius.circular(14),
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
         child: InkWell(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(AppTheme.radiusMd),
           onTap: onTap,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (news.hasImage)
                 ClipRRect(
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(14),
-                    topRight: Radius.circular(14),
-                  ),
-                  child: SizedBox(
-                    height: 180,
-                    width: double.infinity,
-                    child: _buildImage(),
-                  ),
-                ),
-              Padding(
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: _categoryColor.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            news.category.toUpperCase(),
-                            style: TextStyle(
-                              fontSize: 9,
-                              color: _categoryColor,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.5,
+                  borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16)),
+                  child: Stack(
+                    children: [
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxHeight: 400, minHeight: 150),
+                        child: SizedBox(width: double.infinity, child: _buildImageWidget()),
+                      ),
+                      if (news.imageUrls.length > 1)
+                        Positioned(
+                          top: 10, right: 10,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(12)),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.collections, size: 14, color: Colors.white),
+                                const SizedBox(width: 4),
+                                Text('${news.imageUrls.length}', style: const TextStyle(color: Colors.white, fontSize: 12)),
+                              ],
                             ),
                           ),
                         ),
-                        const Spacer(),
-                        const Icon(Icons.access_time,
-                            size: 12, color: AppTheme.textMuted),
-                        const SizedBox(width: 4),
-                        Text(
-                          news.timeAgo,
-                          style: const TextStyle(
-                              fontSize: 11, color: AppTheme.textMuted),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
+                    ],
+                  ),
+                ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
                       news.title,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: AppTheme.textDark,
-                        height: 1.3,
-                      ),
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 17), // ✅ Динамический цвет
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 8),
                     Text(
-                      news.shortDescription.isNotEmpty
-                          ? news.shortDescription
-                          : news.body,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: AppTheme.textMuted,
-                        height: 1.4,
-                      ),
+                      news.shortDescription,
+                      style: Theme.of(context).textTheme.bodySmall, // ✅ Динамический цвет
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        if (news.authorName.isNotEmpty) ...[
-                          const Icon(Icons.person,
-                              size: 12, color: AppTheme.textMuted),
-                          const SizedBox(width: 4),
-                          Text(
-                            news.authorName,
-                            style: const TextStyle(
-                                fontSize: 11, color: AppTheme.textMuted),
-                          ),
-                        ],
-                        const Spacer(),
-                        const Text(
-                          'Читать',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppTheme.accentBlue,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const Icon(Icons.chevron_right,
-                            size: 16, color: AppTheme.accentBlue),
-                      ],
                     ),
                   ],
                 ),

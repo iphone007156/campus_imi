@@ -280,6 +280,7 @@ class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
         _participantsData.where((p) => p['attended'] == true).length;
     final allMarked = _participantsData.isNotEmpty &&
         attendedCount == _participantsData.length;
+    final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -311,7 +312,7 @@ class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
             ),
         ],
       ),
-      backgroundColor: AppTheme.backgroundGray,
+      backgroundColor: theme.scaffoldBackgroundColor, // ✅ Динамический фон
       body: Column(
         children: [
           // Статистика
@@ -319,8 +320,11 @@ class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
             margin: const EdgeInsets.all(16),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [AppTheme.primaryNavy, Color(0xFF3D6FA3)],
+              gradient: LinearGradient(
+                colors: [
+                  theme.colorScheme.primary,
+                  theme.colorScheme.primary.withValues(alpha: 0.7),
+                ],
               ),
               borderRadius: BorderRadius.circular(14),
             ),
@@ -338,7 +342,7 @@ class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
                   child: _StatBox(
                     label: 'Пришли',
                     value: '$attendedCount',
-                    color: Colors.green,
+                    color: Colors.greenAccent,
                   ),
                 ),
                 Container(width: 1, height: 40, color: Colors.white24),
@@ -376,7 +380,7 @@ class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.green,
                         foregroundColor: Colors.white,
-                        disabledBackgroundColor: Colors.grey[300],
+                        disabledBackgroundColor: theme.disabledColor,
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10),
@@ -395,7 +399,7 @@ class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.orange,
                         foregroundColor: Colors.white,
-                        disabledBackgroundColor: Colors.grey[300],
+                        disabledBackgroundColor: theme.disabledColor,
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10),
@@ -462,10 +466,10 @@ class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _participantsData.isEmpty
-                ? const Center(
+                ? Center(
               child: Text(
                 'Пока никто не записался',
-                style: TextStyle(color: AppTheme.textMuted),
+                style: TextStyle(color: theme.disabledColor),
               ),
             )
                 : ListView.builder(
@@ -480,12 +484,12 @@ class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
                   margin: const EdgeInsets.only(bottom: 8),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: AppTheme.cardWhite,
+                    color: theme.cardColor, // ✅ Динамический цвет
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: isAttended
                           ? Colors.green
-                          : AppTheme.divider,
+                          : theme.dividerColor,
                       width: isAttended ? 2 : 1,
                     ),
                   ),
@@ -496,15 +500,15 @@ class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
                         height: 46,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: AppTheme.lightBlue,
+                          color: theme.colorScheme.primary.withValues(alpha: 0.1),
                           image: photo != null
                               ? DecorationImage(
                               image: photo, fit: BoxFit.cover)
                               : null,
                         ),
                         child: photo == null
-                            ? const Icon(Icons.person,
-                            color: AppTheme.accentBlue)
+                            ? Icon(Icons.person,
+                            color: theme.colorScheme.primary)
                             : null,
                       ),
                       const SizedBox(width: 12),
@@ -515,17 +519,17 @@ class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
                           children: [
                             Text(
                               p['name'],
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w600,
-                                color: AppTheme.textDark,
+                                color: theme.textTheme.titleMedium?.color,
                               ),
                             ),
                             Text(
                               p['group'],
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12,
-                                color: AppTheme.textMuted,
+                                color: theme.disabledColor,
                               ),
                             ),
                           ],
@@ -547,7 +551,7 @@ class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
                           decoration: BoxDecoration(
                             color: isAttended
                                 ? Colors.green.withValues(alpha: 0.2)
-                                : Colors.grey[100],
+                                : theme.disabledColor.withValues(alpha: 0.1),
                             shape: BoxShape.circle,
                           ),
                           child: Icon(
@@ -556,7 +560,7 @@ class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
                                 : Icons.radio_button_unchecked,
                             color: isAttended
                                 ? Colors.green
-                                : AppTheme.textMuted,
+                                : theme.disabledColor,
                             size: 22,
                           ),
                         ),

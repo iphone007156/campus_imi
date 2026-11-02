@@ -6,7 +6,7 @@ class UserService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // ✅ НОВЫЙ МЕТОД: загрузить всех пользователей ОДНИМ запросом
+  // загрузить всех пользователей ОДНИМ запросом
   Future<Map<String, Map<String, dynamic>>> getUsersByIds(
       List<String> uids) async {
     if (uids.isEmpty) return {};

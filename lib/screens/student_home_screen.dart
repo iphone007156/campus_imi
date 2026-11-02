@@ -2,97 +2,132 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:convert';
+import 'dart:async';
 import '../theme/app_theme.dart';
+import '../l10n/app_strings.dart';
+import '../services/settings_service.dart';
 import 'news_screen.dart';
 import 'schedule_screen.dart';
 import 'gradebook_screen.dart';
 import 'profile_screen.dart';
 import 'union_home_screen.dart';
+import 'indoor_map_screen.dart';
+import 'support_screen.dart';
+import 'tasks_screen.dart';
+import 'settings_screen.dart';
 
-// --- Функция для декодирования Base64 ---
-ImageProvider? getImageFromBase64(String? base64String) {
+ImageProvider? getImageProvider(Map<String, dynamic> data) {
+  final photoUrl = data['photoUrl'] as String?;
+  if (photoUrl != null && photoUrl.isNotEmpty) {
+    return NetworkImage(photoUrl);
+  }
+  final base64String = data['photoBase64'] as String?;
   if (base64String == null || base64String.isEmpty) return null;
   try {
-    final bytes = base64Decode(base64String);
-    return MemoryImage(bytes);
-  } catch (e) {
+    return MemoryImage(base64Decode(base64String));
+  } catch (_) {
     return null;
   }
 }
-
-// --- Вспомогательные классы ---
 
 class MenuItem {
   final IconData icon;
   final String label;
   final String subtitle;
-
-  const MenuItem(this.icon, this.label, this.subtitle);
+  final String route;
+  const MenuItem(this.icon, this.label, this.subtitle, this.route);
 }
 
-class MenuTile extends StatelessWidget {
+class _MenuTile extends StatelessWidget {
   final MenuItem item;
-  final bool isFirst;
-  final bool isLast;
   final VoidCallback onTap;
-
-  const MenuTile({
-    super.key,
-    required this.item,
-    required this.isFirst,
-    required this.isLast,
-    required this.onTap,
-  });
+  const _MenuTile({required this.item, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final borderRadius = BorderRadius.only(
-      topLeft: Radius.circular(isFirst ? 12 : 0),
-      topRight: Radius.circular(isFirst ? 12 : 0),
-      bottomLeft: Radius.circular(isLast ? 12 : 0),
-      bottomRight: Radius.circular(isLast ? 12 : 0),
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+            horizontal: AppTheme.s16, vertical: AppTheme.s12),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+              ),
+              child: Icon(item.icon, color: Theme.of(context).colorScheme.primary, size: 22),
+            ),
+            const SizedBox(width: AppTheme.s12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(item.label,
+                      style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 2),
+                  Text(item.subtitle,
+                      style: Theme.of(context).textTheme.bodySmall),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right,
+                color: Theme.of(context).textTheme.bodySmall?.color, size: 20),
+          ],
+        ),
+      ),
     );
+  }
+}
+
+class _SupportCard extends StatelessWidget {
+  const _SupportCard();
+  @override
+  Widget build(BuildContext context) {
+    final langCode = SettingsService.instance.locale.languageCode;
+    final t = (String key) => AppStrings.t(key, langCode);
 
     return Material(
-      color: AppTheme.cardWhite,
-      borderRadius: borderRadius,
+      color: Theme.of(context).cardColor,
+      borderRadius: BorderRadius.circular(AppTheme.radiusMd),
       child: InkWell(
-        borderRadius: borderRadius,
-        onTap: onTap,
-        child: Container(
-          decoration: BoxDecoration(
-            border: isLast
-                ? null
-                : const Border(
-              bottom: BorderSide(color: AppTheme.divider, width: 0.5),
-            ),
-          ),
-          child: ListTile(
-            contentPadding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
-            leading: Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: AppTheme.lightBlue,
-                borderRadius: BorderRadius.circular(9),
+        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+        onTap: () => Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const SupportScreen())),
+        child: Padding(
+          padding: const EdgeInsets.all(AppTheme.s16),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: AppTheme.accent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                ),
+                child: const Icon(Icons.support_agent,
+                    color: AppTheme.accent, size: 24),
               ),
-              child: Icon(item.icon, color: AppTheme.accentBlue, size: 20),
-            ),
-            title: Text(
-              item.label,
-              style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w500,
-                color: AppTheme.textDark,
+              const SizedBox(width: AppTheme.s12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(t('support'),
+                        style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 2),
+                    Text(t('support_sub'),
+                        style: Theme.of(context).textTheme.bodySmall),
+                  ],
+                ),
               ),
-            ),
-            subtitle: Text(
-              item.subtitle,
-              style: const TextStyle(fontSize: 12, color: AppTheme.textMuted),
-            ),
-            trailing: const Icon(Icons.chevron_right,
-                color: AppTheme.textMuted, size: 20),
+              Icon(Icons.chevron_right,
+                  color: Theme.of(context).textTheme.bodySmall?.color, size: 20),
+            ],
           ),
         ),
       ),
@@ -100,63 +135,8 @@ class MenuTile extends StatelessWidget {
   }
 }
 
-class SupportCard extends StatelessWidget {
-  const SupportCard({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.cardWhite,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.divider),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: const Color(0xFFEDF4FF),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Icon(Icons.support_agent,
-                color: AppTheme.accentBlue, size: 24),
-          ),
-          const SizedBox(width: 12),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Техническая поддержка',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.textDark,
-                  ),
-                ),
-                SizedBox(height: 2),
-                Text(
-                  'Нужна помощь? Напишите нам',
-                  style: TextStyle(fontSize: 12, color: AppTheme.textMuted),
-                ),
-              ],
-            ),
-          ),
-          const Icon(Icons.chevron_right, color: AppTheme.textMuted, size: 20),
-        ],
-      ),
-    );
-  }
-}
-
-// --- ОСНОВНОЙ ЭКРАН ---
-
 class StudentHomeScreen extends StatefulWidget {
   const StudentHomeScreen({super.key});
-
   @override
   State<StudentHomeScreen> createState() => _StudentHomeScreenState();
 }
@@ -165,18 +145,9 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
   String _userName = 'Студент';
   String _userGroup = 'Группа';
   String _userInstitute = 'ИМИ СВФУ';
-  String? _userPhotoBase64;
+  ImageProvider? _userPhoto;
   bool _isLoading = true;
-
-  final List<MenuItem> _menuItems = const [
-    MenuItem(Icons.newspaper_outlined, 'Новости', 'Последние события'),
-    MenuItem(Icons.assignment_outlined, 'Задания', 'Учебные задания'),
-    MenuItem(Icons.calendar_today_outlined, 'Расписание', 'Расписание занятий'),
-    MenuItem(Icons.people_outline, 'Профсоюз', 'Студенческий профсоюз'),
-    MenuItem(Icons.map_outlined, 'Карта', 'Карта кампуса'),
-    MenuItem(Icons.menu_book_outlined, 'Зачётка', 'Оценки и зачёты'),
-    MenuItem(Icons.account_circle_outlined, 'Профиль', 'Личный кабинет'),
-  ];
+  StreamSubscription<DocumentSnapshot>? _userSub;
 
   @override
   void initState() {
@@ -190,136 +161,165 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
       setState(() => _isLoading = false);
       return;
     }
-
-    FirebaseFirestore.instance
+    _userSub = FirebaseFirestore.instance
         .collection('users')
         .doc(user.uid)
         .snapshots()
         .listen((snapshot) {
+      if (!mounted) return;
       if (snapshot.exists) {
         final data = snapshot.data() as Map<String, dynamic>;
         setState(() {
           _userName = data['name'] ?? 'Студент';
           _userGroup = data['group'] ?? 'Группа';
           _userInstitute = data['institute'] ?? 'ИМИ СВФУ';
-          _userPhotoBase64 = data['photoBase64'];
+          _userPhoto = getImageProvider(data);
           _isLoading = false;
         });
       } else {
         setState(() => _isLoading = false);
       }
-    }, onError: (error) {
-      setState(() => _isLoading = false);
+    }, onError: (_) {
+      if (mounted) setState(() => _isLoading = false);
     });
   }
 
   @override
-  Widget build(BuildContext context) {
-    final photoProvider = getImageFromBase64(_userPhotoBase64);
+  void dispose() {
+    _userSub?.cancel();
+    super.dispose();
+  }
 
-    return Scaffold(
-      backgroundColor: AppTheme.backgroundGray,
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            // ✅ Высота шапки — оптимальная
-            expandedHeight: 230,
-            pinned: true,
-            backgroundColor: AppTheme.primaryNavy,
-            automaticallyImplyLeading: false,
-            flexibleSpace: FlexibleSpaceBar(
-              // ✅ Заголовок опущен ниже
-              centerTitle: true,
-              titlePadding: const EdgeInsets.only(left: 16, bottom: 16),
-              background: ProfileHeader(
-                userName: _userName,
-                userGroup: _userGroup,
-                userInstitute: _userInstitute,
-                photoProvider: photoProvider,
-                isLoading: _isLoading,
+  @override
+  Widget build(BuildContext context) {
+    // ✅ Слушаем изменения языка, чтобы меню перестраивалось
+    return ListenableBuilder(
+      listenable: SettingsService.instance,
+      builder: (context, _) {
+        final langCode = SettingsService.instance.locale.languageCode;
+        final t = (String key) => AppStrings.t(key, langCode);
+
+        final List<MenuItem> menuItems = [
+          MenuItem(Icons.newspaper_outlined, t('news'), t('news_sub'), 'news'),
+          MenuItem(Icons.assignment_outlined, t('tasks'), t('tasks_sub'), 'tasks'),
+          MenuItem(Icons.calendar_today_outlined, t('schedule'), t('schedule_sub'), 'schedule'),
+          MenuItem(Icons.people_outline, t('union'), t('union_sub'), 'union'),
+          MenuItem(Icons.map_outlined, t('map'), t('map_sub'), 'map'),
+          MenuItem(Icons.menu_book_outlined, t('gradebook'), t('gradebook_sub'), 'gradebook'),
+          MenuItem(Icons.account_circle_outlined, t('profile'), t('profile_sub'), 'profile'),
+        ];
+
+        return Scaffold(
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          body: CustomScrollView(
+            slivers: [
+              SliverAppBar(
+                expandedHeight: 220,
+                pinned: true,
+                backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+                automaticallyImplyLeading: false,
+                flexibleSpace: FlexibleSpaceBar(
+                  centerTitle: false,
+                  titlePadding: const EdgeInsets.only(
+                      left: AppTheme.s16, bottom: AppTheme.s16),
+                  background: _ProfileHeader(
+                    userName: _userName,
+                    userGroup: _userGroup,
+                    userInstitute: _userInstitute,
+                    photoProvider: _userPhoto,
+                    isLoading: _isLoading,
+                  ),
+                ),
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.settings_outlined,
+                        color: Colors.white70, size: 20),
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                    ),
+                    tooltip: 'Настройки',
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.logout,
+                        color: Colors.white70, size: 20),
+                    onPressed: () => _showLogoutDialog(context),
+                    tooltip: 'Выйти',
+                  ),
+                  const SizedBox(width: 4),
+                ],
               ),
-            ),
-            title: const Text('Главное меню'),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.logout, color: Colors.white70, size: 20),
-                onPressed: () => _showLogoutDialog(context),
-                tooltip: 'Выйти',
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(
+                    AppTheme.s16, AppTheme.s20, AppTheme.s16, AppTheme.s8),
+                sliver: SliverToBoxAdapter(
+                    child: Text(t('services'),
+                        style: Theme.of(context).textTheme.labelSmall)),
               ),
-              const SizedBox(width: 8),
-            ],
-          ),
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
-            sliver: SliverToBoxAdapter(
-              child: Text(
-                'СЕРВИСЫ',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.textMuted,
-                  letterSpacing: 1.0,
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: AppTheme.s16),
+                sliver: SliverToBoxAdapter(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).cardColor,
+                      borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                      boxShadow: AppTheme.shadowSoft,
+                    ),
+                    child: Column(
+                      children: [
+                        for (int i = 0; i < menuItems.length; i++) ...[
+                          _MenuTile(
+                            item: menuItems[i],
+                            onTap: () =>
+                                _onMenuTap(context, menuItems[i].route),
+                          ),
+                          if (i < menuItems.length - 1)
+                            const Divider(indent: 72, endIndent: 16),
+                        ],
+                      ],
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ),
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            sliver: SliverList(
-              delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                  final item = _menuItems[index];
-                  return MenuTile(
-                    item: item,
-                    isFirst: index == 0,
-                    isLast: index == _menuItems.length - 1,
-                    onTap: () => _onMenuTap(context, item.label),
-                  );
-                },
-                childCount: _menuItems.length,
+              SliverPadding(
+                padding: const EdgeInsets.all(AppTheme.s16),
+                sliver: const SliverToBoxAdapter(child: _SupportCard()),
               ),
-            ),
+              const SliverToBoxAdapter(child: SizedBox(height: AppTheme.s24)),
+            ],
           ),
-          SliverPadding(
-            padding: const EdgeInsets.all(16),
-            sliver: SliverToBoxAdapter(child: const SupportCard()),
-          ),
-          const SliverToBoxAdapter(child: SizedBox(height: 24)),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  void _onMenuTap(BuildContext context, String label) {
+  void _onMenuTap(BuildContext context, String route) {
     Widget? screen;
-    switch (label) {
-      case 'Новости':
+    switch (route) {
+      case 'news':
         screen = const NewsScreen();
         break;
-      case 'Расписание':
+      case 'tasks':
+        screen = const TasksEntry();
+        break;
+      case 'schedule':
         screen = const ScheduleScreen();
         break;
-      case 'Зачётка':
+      case 'map':
+        screen = const IndoorMapScreen();
+        break;
+      case 'gradebook':
         screen = const GradebookScreen();
         break;
-      case 'Профиль':
+      case 'profile':
         screen = const ProfileScreen();
         break;
-      case 'Профсоюз':
+      case 'union':
         screen = const UnionHomeScreen();
         break;
     }
     if (screen != null) {
       Navigator.push(context, MaterialPageRoute(builder: (_) => screen!));
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Раздел "$label" в разработке'),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          backgroundColor: AppTheme.primaryNavy,
-        ),
-      );
     }
   }
 
@@ -331,19 +331,12 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
         content: const Text('Вы уверены, что хотите выйти из учетной записи?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Отмена'),
-          ),
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Отмена')),
           TextButton(
             onPressed: () async {
-              try {
-                await FirebaseAuth.instance.signOut();
-                if (mounted) Navigator.pop(context);
-              } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Ошибка при выходе')),
-                );
-              }
+              await FirebaseAuth.instance.signOut();
+              if (context.mounted) Navigator.pop(context);
             },
             child: const Text('Выйти', style: TextStyle(color: Colors.red)),
           ),
@@ -353,17 +346,14 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
   }
 }
 
-// --- ШАПКА ПРОФИЛЯ ---
-
-class ProfileHeader extends StatelessWidget {
+class _ProfileHeader extends StatelessWidget {
   final String userName;
   final String userGroup;
   final String userInstitute;
   final ImageProvider? photoProvider;
   final bool isLoading;
 
-  const ProfileHeader({
-    super.key,
+  const _ProfileHeader({
     required this.userName,
     required this.userGroup,
     required this.userInstitute,
@@ -374,47 +364,39 @@ class ProfileHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      // ✅ ОТРЕГУЛИРОВАЛИ ОТСТУПЫ:
-      // top: 100 — опустили аватарку ниже от заголовка "Главное меню"
-      // bottom: 20 — убрали пустое место снизу
-      padding: const EdgeInsets.fromLTRB(20, 100, 20, 20),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [AppTheme.primaryNavy, Color(0xFF2C4A8A)],
-        ),
+      padding: const EdgeInsets.fromLTRB(
+          AppTheme.s20, 100, AppTheme.s20, AppTheme.s20),
+      decoration: BoxDecoration(
+        color: Theme.of(context).appBarTheme.backgroundColor,
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Аватар — слева
           Container(
-            width: 72,
-            height: 72,
+            width: 64,
+            height: 64,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: Colors.white.withValues(alpha: 0.15),
               border: Border.all(
-                color: Colors.white.withValues(alpha: 0.5),
-                width: 2.5,
-              ),
+                  color: Colors.white.withValues(alpha: 0.4), width: 2),
               image: photoProvider != null
                   ? DecorationImage(
-                image: photoProvider!,
-                fit: BoxFit.cover,
-              )
+                  image: photoProvider!, fit: BoxFit.cover)
                   : null,
             ),
             child: isLoading
-                ? const CircularProgressIndicator(color: Colors.white)
+                ? const Center(
+                child: SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white)))
                 : (photoProvider == null
-                ? const Icon(Icons.person, color: Colors.white, size: 38)
+                ? const Icon(Icons.person, color: Colors.white, size: 32)
                 : null),
           ),
-          const SizedBox(width: 16),
-
-          // Информация
+          const SizedBox(width: AppTheme.s16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -423,35 +405,25 @@ class ProfileHeader extends StatelessWidget {
                 Text(
                   isLoading ? 'Загрузка...' : userName,
                   style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    isLoading ? '...' : userGroup,
-                    style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                      fontSize: 19,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.2),
                 ),
                 const SizedBox(height: 4),
                 Text(
+                  isLoading ? '...' : userGroup,
+                  style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.85),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500),
+                ),
+                const SizedBox(height: 2),
+                Text(
                   isLoading ? '' : userInstitute,
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.65),
-                    fontSize: 11,
-                  ),
+                      color: Colors.white.withValues(alpha: 0.6),
+                      fontSize: 12),
                 ),
               ],
             ),

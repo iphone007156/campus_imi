@@ -218,7 +218,7 @@ class EventService {
     });
   }
 
-  // ===== ЗАВЕРШЕНИЕ (✅ ИСПРАВЛЕНО) =====
+  // ===== ЗАВЕРШЕНИЕ =====
   Future<void> finalizeEvent(String eventId) async {
     final user = _auth.currentUser;
     if (user == null) return;

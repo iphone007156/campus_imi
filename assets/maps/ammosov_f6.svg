@@ -1,0 +1,182 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2150 780" width="2150" height="780">
+<title>СВФУ, Учебный корпус, ул. Кулаковского 48 — 6 этаж</title>
+<rect id="background" width="2150" height="780" fill="#EFEEE9"/>
+<g id="floor">
+<path id="floor-main" d="M455.0 120.0 L2075.0 120.0 L2075.0 360.0 L455.0 360.0 Z" fill="#F3F7FD" stroke="#C9CBD0" stroke-width="3"/>
+</g>
+<g id="rooms">
+<path id="unit" d="M505.0 135.0 L602.0 135.0 L602.0 225.0 L505.0 225.0 Z" fill="#BDD7F7" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+<path id="unit-2" d="M602.0 135.0 L699.0 135.0 L699.0 225.0 L602.0 225.0 Z" fill="#BDD7F7" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+<path id="unit-3" d="M699.0 135.0 L796.0 135.0 L796.0 225.0 L699.0 225.0 Z" fill="#BDD7F7" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+<path id="room-650" d="M796.0 135.0 L893.0 135.0 L893.0 225.0 L796.0 225.0 Z" fill="#BDD7F7" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+<path id="room-648" d="M893.0 135.0 L990.0 135.0 L990.0 225.0 L893.0 225.0 Z" fill="#BDD7F7" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+<path id="room-646" d="M1070.0 135.0 L1125.7 135.0 L1125.7 225.0 L1070.0 225.0 Z" fill="#BDD7F7" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+<path id="room-644" d="M1125.7 135.0 L1181.4 135.0 L1181.4 225.0 L1125.7 225.0 Z" fill="#BDD7F7" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+<path id="room-642" d="M1181.4 135.0 L1237.1 135.0 L1237.1 225.0 L1181.4 225.0 Z" fill="#BDD7F7" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+<path id="room-640" d="M1237.1 135.0 L1292.9 135.0 L1292.9 225.0 L1237.1 225.0 Z" fill="#BDD7F7" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+<path id="room-628" d="M1292.9 135.0 L1348.6 135.0 L1348.6 225.0 L1292.9 225.0 Z" fill="#BDD7F7" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+<path id="room-632" d="M1348.6 135.0 L1404.3 135.0 L1404.3 225.0 L1348.6 225.0 Z" fill="#BDD7F7" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+<path id="room-632-2" d="M1404.3 135.0 L1460.0 135.0 L1460.0 225.0 L1404.3 225.0 Z" fill="#BDD7F7" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+<path id="room-630" d="M1465.0 135.0 L1492.5 135.0 L1492.5 225.0 L1465.0 225.0 Z" fill="#BDD7F7" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+<path id="room-628-2" d="M1537.5 135.0 L1581.4 135.0 L1581.4 225.0 L1537.5 225.0 Z" fill="#BDD7F7" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+<path id="room-626" d="M1581.4 135.0 L1625.2 135.0 L1625.2 225.0 L1581.4 225.0 Z" fill="#BDD7F7" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+<path id="room-622" d="M1625.2 135.0 L1669.1 135.0 L1669.1 225.0 L1625.2 225.0 Z" fill="#BDD7F7" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+<path id="room-620" d="M1669.1 135.0 L1713.0 135.0 L1713.0 225.0 L1669.1 225.0 Z" fill="#BDD7F7" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+<path id="room-618" d="M1713.0 135.0 L1756.8 135.0 L1756.8 225.0 L1713.0 225.0 Z" fill="#BDD7F7" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+<path id="room-616" d="M1756.8 135.0 L1800.7 135.0 L1800.7 225.0 L1756.8 225.0 Z" fill="#BDD7F7" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+<path id="room-614" d="M1800.7 135.0 L1844.5 135.0 L1844.5 225.0 L1800.7 225.0 Z" fill="#BDD7F7" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+<path id="room-612" d="M1844.5 135.0 L1888.4 135.0 L1888.4 225.0 L1844.5 225.0 Z" fill="#BDD7F7" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+<path id="room-608" d="M1888.4 135.0 L1932.3 135.0 L1932.3 225.0 L1888.4 225.0 Z" fill="#BDD7F7" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+<path id="room-606" d="M1932.3 135.0 L1976.1 135.0 L1976.1 225.0 L1932.3 225.0 Z" fill="#BDD7F7" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+<path id="room-604" d="M1976.1 135.0 L2020.0 135.0 L2020.0 225.0 L1976.1 225.0 Z" fill="#BDD7F7" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+<path id="room-649" d="M470.0 255.0 L562.5 255.0 L562.5 315.0 L470.0 315.0 Z" fill="#BDD7F7" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+<path id="room-647" d="M562.5 255.0 L655.0 255.0 L655.0 315.0 L562.5 315.0 Z" fill="#BDD7F7" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+<path id="room-645" d="M655.0 255.0 L747.5 255.0 L747.5 315.0 L655.0 315.0 Z" fill="#BDD7F7" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+<path id="room-643" d="M747.5 255.0 L840.0 255.0 L840.0 315.0 L747.5 315.0 Z" fill="#BDD7F7" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+<path id="room-wc-west" d="M845.0 255.0 L955.0 255.0 L955.0 315.0 L845.0 315.0 Z" fill="#D9E6F7" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+<path id="room-548" d="M960.0 255.0 L1070.0 255.0 L1070.0 320.0 L960.0 320.0 Z" fill="#BDD7F7" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+<path id="room-639" d="M1485.0 265.0 L1551.9 265.0 L1551.9 345.0 L1485.0 345.0 Z" fill="#BDD7F7" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+<path id="room-613" d="M1551.9 265.0 L1618.8 265.0 L1618.8 345.0 L1551.9 345.0 Z" fill="#BDD7F7" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+<path id="room-611" d="M1618.8 265.0 L1685.6 265.0 L1685.6 345.0 L1618.8 345.0 Z" fill="#BDD7F7" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+<path id="room-609" d="M1685.6 265.0 L1752.5 265.0 L1752.5 345.0 L1685.6 345.0 Z" fill="#BDD7F7" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+<path id="room-607" d="M1752.5 265.0 L1819.4 265.0 L1819.4 345.0 L1752.5 345.0 Z" fill="#BDD7F7" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+<path id="room-605" d="M1819.4 265.0 L1886.2 265.0 L1886.2 345.0 L1819.4 345.0 Z" fill="#BDD7F7" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+<path id="room-603" d="M1886.2 265.0 L1953.1 265.0 L1953.1 345.0 L1886.2 345.0 Z" fill="#BDD7F7" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+<path id="room-601" d="M1953.1 265.0 L2020.0 265.0 L2020.0 345.0 L1953.1 345.0 Z" fill="#BDD7F7" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+</g>
+<g id="atrium">
+<path id="void-west-box" d="M60.0 35.0 L455.0 35.0 L455.0 350.0 L60.0 350.0 Z" fill="#FFFFFF" stroke="#C9CBD0" stroke-width="2"/>
+<path id="void-west-hall" d="M30.0 370.0 L430.0 370.0 L430.0 370.0 L421.9 429.2 L398.3 483.5 L361.0 528.7 L313.1 561.0 L258.5 577.9 L201.5 577.9 L146.9 561.0 L99.0 528.7 L61.7 483.5 L38.1 429.2 L30.0 370.0 Z" fill="#FFFFFF" stroke="#C9CBD0" stroke-width="2"/>
+<path id="void-461" d="M835.0 330.0 L1030.0 330.0 L1030.0 455.0 L900.0 465.0 L835.0 410.0 Z" fill="#FFFFFF" stroke="#C9CBD0" stroke-width="2"/>
+<path id="void-east" d="M1790.0 360.0 L1790.0 440.0 L1960.0 570.0 L2025.0 570.0 L2090.0 480.0 L2090.0 360.0 Z" fill="#FFFFFF" stroke="#C9CBD0" stroke-width="2"/>
+<path id="void-arc" d="M1661.2 409.9 L1485.7 388.2 L1309.1 393.6 L1135.3 425.8 L968.5 484.3 L812.6 567.5 L671.2 673.5 L770.1 786.3 L893.1 694.0 L1028.8 621.6 L1173.9 570.8 L1325.1 542.7 L1478.8 538.1 L1631.4 556.9 Z" fill="#FFFFFF" stroke="#C9CBD0" stroke-width="2"/>
+<path id="atrium-void" d="M1100.0 255.0 L1440.0 255.0 L1440.0 440.0 L1100.0 440.0 Z" fill="#FFFFFF" stroke="#C9CBD0" stroke-width="2"/>
+<path id="atrium-spiral" d="M1210.0 360.0 L1208.5 374.2 L1204.0 387.5 L1196.8 398.9 L1187.5 407.6 L1176.6 413.1 L1165.0 415.0 L1153.4 413.1 L1142.5 407.6 L1133.2 398.9 L1126.0 387.5 L1121.5 374.2 L1120.0 360.0 L1121.5 345.8 L1126.0 332.5 L1133.2 321.1 L1142.5 312.4 L1153.4 306.9 L1165.0 305.0 L1176.6 306.9 L1187.5 312.4 L1196.8 321.1 L1204.0 332.5 L1208.5 345.8 Z" fill="#FFFFFF" stroke="#C9CBD0" stroke-width="2"/>
+</g>
+<g id="stairs">
+<path id="stairs-1" d="M455.0 120.0 L505.0 120.0 L505.0 225.0 L455.0 225.0 Z" fill="#BDD7F7" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+<path id="stairs-2" d="M990.0 120.0 L1030.0 120.0 L1030.0 225.0 L990.0 225.0 Z" fill="#BDD7F7" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+<path id="stairs-4" d="M1492.5 120.0 L1537.5 120.0 L1537.5 225.0 L1492.5 225.0 Z" fill="#BDD7F7" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+<path id="stairs-5" d="M2020.0 125.0 L2075.0 125.0 L2075.0 225.0 L2020.0 225.0 Z" fill="#BDD7F7" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+</g>
+<g id="doors">
+<line id="door-650" x1="853.5" y1="225.0" x2="835.5" y2="225.0" stroke="#6FA3EB" stroke-width="4" stroke-linecap="round"/>
+<line id="door-648" x1="950.5" y1="225.0" x2="932.5" y2="225.0" stroke="#6FA3EB" stroke-width="4" stroke-linecap="round"/>
+<line id="door-646" x1="1106.9" y1="225.0" x2="1088.9" y2="225.0" stroke="#6FA3EB" stroke-width="4" stroke-linecap="round"/>
+<line id="door-644" x1="1162.6" y1="225.0" x2="1144.6" y2="225.0" stroke="#6FA3EB" stroke-width="4" stroke-linecap="round"/>
+<line id="door-642" x1="1218.3" y1="225.0" x2="1200.3" y2="225.0" stroke="#6FA3EB" stroke-width="4" stroke-linecap="round"/>
+<line id="door-640" x1="1274.0" y1="225.0" x2="1256.0" y2="225.0" stroke="#6FA3EB" stroke-width="4" stroke-linecap="round"/>
+<line id="door-628" x1="1329.7" y1="225.0" x2="1311.7" y2="225.0" stroke="#6FA3EB" stroke-width="4" stroke-linecap="round"/>
+<line id="door-632" x1="1385.4" y1="225.0" x2="1367.4" y2="225.0" stroke="#6FA3EB" stroke-width="4" stroke-linecap="round"/>
+<line id="door-632-2" x1="1441.1" y1="225.0" x2="1423.1" y2="225.0" stroke="#6FA3EB" stroke-width="4" stroke-linecap="round"/>
+<line id="door-630" x1="1487.8" y1="225.0" x2="1469.8" y2="225.0" stroke="#6FA3EB" stroke-width="4" stroke-linecap="round"/>
+<line id="door-628-2" x1="1568.4" y1="225.0" x2="1550.4" y2="225.0" stroke="#6FA3EB" stroke-width="4" stroke-linecap="round"/>
+<line id="door-626" x1="1612.3" y1="225.0" x2="1594.3" y2="225.0" stroke="#6FA3EB" stroke-width="4" stroke-linecap="round"/>
+<line id="door-622" x1="1656.2" y1="225.0" x2="1638.2" y2="225.0" stroke="#6FA3EB" stroke-width="4" stroke-linecap="round"/>
+<line id="door-620" x1="1700.0" y1="225.0" x2="1682.0" y2="225.0" stroke="#6FA3EB" stroke-width="4" stroke-linecap="round"/>
+<line id="door-618" x1="1743.9" y1="225.0" x2="1725.9" y2="225.0" stroke="#6FA3EB" stroke-width="4" stroke-linecap="round"/>
+<line id="door-616" x1="1787.8" y1="225.0" x2="1769.8" y2="225.0" stroke="#6FA3EB" stroke-width="4" stroke-linecap="round"/>
+<line id="door-614" x1="1831.6" y1="225.0" x2="1813.6" y2="225.0" stroke="#6FA3EB" stroke-width="4" stroke-linecap="round"/>
+<line id="door-612" x1="1875.5" y1="225.0" x2="1857.5" y2="225.0" stroke="#6FA3EB" stroke-width="4" stroke-linecap="round"/>
+<line id="door-608" x1="1919.3" y1="225.0" x2="1901.3" y2="225.0" stroke="#6FA3EB" stroke-width="4" stroke-linecap="round"/>
+<line id="door-606" x1="1963.2" y1="225.0" x2="1945.2" y2="225.0" stroke="#6FA3EB" stroke-width="4" stroke-linecap="round"/>
+<line id="door-604" x1="2007.1" y1="225.0" x2="1989.1" y2="225.0" stroke="#6FA3EB" stroke-width="4" stroke-linecap="round"/>
+<line id="door-649" x1="507.2" y1="255.0" x2="525.2" y2="255.0" stroke="#6FA3EB" stroke-width="4" stroke-linecap="round"/>
+<line id="door-647" x1="599.8" y1="255.0" x2="617.8" y2="255.0" stroke="#6FA3EB" stroke-width="4" stroke-linecap="round"/>
+<line id="door-645" x1="692.2" y1="255.0" x2="710.2" y2="255.0" stroke="#6FA3EB" stroke-width="4" stroke-linecap="round"/>
+<line id="door-643" x1="784.8" y1="255.0" x2="802.8" y2="255.0" stroke="#6FA3EB" stroke-width="4" stroke-linecap="round"/>
+<line id="door-548" x1="1006.0" y1="255.0" x2="1024.0" y2="255.0" stroke="#6FA3EB" stroke-width="4" stroke-linecap="round"/>
+<line id="door-639" x1="1509.4" y1="265.0" x2="1527.4" y2="265.0" stroke="#6FA3EB" stroke-width="4" stroke-linecap="round"/>
+<line id="door-613" x1="1576.3" y1="265.0" x2="1594.3" y2="265.0" stroke="#6FA3EB" stroke-width="4" stroke-linecap="round"/>
+<line id="door-611" x1="1643.2" y1="265.0" x2="1661.2" y2="265.0" stroke="#6FA3EB" stroke-width="4" stroke-linecap="round"/>
+<line id="door-609" x1="1710.1" y1="265.0" x2="1728.1" y2="265.0" stroke="#6FA3EB" stroke-width="4" stroke-linecap="round"/>
+<line id="door-607" x1="1776.9" y1="265.0" x2="1794.9" y2="265.0" stroke="#6FA3EB" stroke-width="4" stroke-linecap="round"/>
+<line id="door-605" x1="1843.8" y1="265.0" x2="1861.8" y2="265.0" stroke="#6FA3EB" stroke-width="4" stroke-linecap="round"/>
+<line id="door-603" x1="1910.7" y1="265.0" x2="1928.7" y2="265.0" stroke="#6FA3EB" stroke-width="4" stroke-linecap="round"/>
+<line id="door-601" x1="1977.6" y1="265.0" x2="1995.6" y2="265.0" stroke="#6FA3EB" stroke-width="4" stroke-linecap="round"/>
+</g>
+<g id="icons">
+<polyline id="icon-stairs-1" points="470.0,181.5 470.0,175.5 477.0,175.5 477.0,169.5 484.0,169.5 484.0,163.5 491.0,163.5" fill="none" stroke="#2F7FEB" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline id="icon-stairs-2" points="1000.0,181.5 1000.0,175.5 1007.0,175.5 1007.0,169.5 1014.0,169.5 1014.0,163.5 1021.0,163.5" fill="none" stroke="#2F7FEB" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline id="icon-stairs-4" points="1505.0,181.5 1505.0,175.5 1512.0,175.5 1512.0,169.5 1519.0,169.5 1519.0,163.5 1526.0,163.5" fill="none" stroke="#2F7FEB" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline id="icon-stairs-5" points="2037.5,184.0 2037.5,178.0 2044.5,178.0 2044.5,172.0 2051.5,172.0 2051.5,166.0 2058.5,166.0" fill="none" stroke="#2F7FEB" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+<g id="icon-room-wc-west" fill="#2F7FEB"><circle cx="891.0" cy="276.0" r="4.5"/><rect x="886.0" y="282.0" width="10" height="15" rx="3"/><circle cx="909.0" cy="276.0" r="4.5"/><rect x="904.0" y="282.0" width="10" height="15" rx="3"/></g>
+</g>
+<g id="nav">
+<circle id="node-stairs-1" cx="480.0" cy="172.5" r="4" fill="#2F7FEB" fill-opacity="0"/>
+<circle id="node-door-650" cx="844.5" cy="225.0" r="4" fill="#2F7FEB" fill-opacity="0"/>
+<circle id="node-door-648" cx="941.5" cy="225.0" r="4" fill="#2F7FEB" fill-opacity="0"/>
+<circle id="node-stairs-2" cx="1010.0" cy="172.5" r="4" fill="#2F7FEB" fill-opacity="0"/>
+<circle id="node-door-646" cx="1097.9" cy="225.0" r="4" fill="#2F7FEB" fill-opacity="0"/>
+<circle id="node-door-644" cx="1153.6" cy="225.0" r="4" fill="#2F7FEB" fill-opacity="0"/>
+<circle id="node-door-642" cx="1209.3" cy="225.0" r="4" fill="#2F7FEB" fill-opacity="0"/>
+<circle id="node-door-640" cx="1265.0" cy="225.0" r="4" fill="#2F7FEB" fill-opacity="0"/>
+<circle id="node-door-628" cx="1320.7" cy="225.0" r="4" fill="#2F7FEB" fill-opacity="0"/>
+<circle id="node-door-632" cx="1376.4" cy="225.0" r="4" fill="#2F7FEB" fill-opacity="0"/>
+<circle id="node-door-632-2" cx="1432.1" cy="225.0" r="4" fill="#2F7FEB" fill-opacity="0"/>
+<circle id="node-door-630" cx="1478.8" cy="225.0" r="4" fill="#2F7FEB" fill-opacity="0"/>
+<circle id="node-stairs-4" cx="1515.0" cy="172.5" r="4" fill="#2F7FEB" fill-opacity="0"/>
+<circle id="node-door-628-2" cx="1559.4" cy="225.0" r="4" fill="#2F7FEB" fill-opacity="0"/>
+<circle id="node-door-626" cx="1603.3" cy="225.0" r="4" fill="#2F7FEB" fill-opacity="0"/>
+<circle id="node-door-622" cx="1647.2" cy="225.0" r="4" fill="#2F7FEB" fill-opacity="0"/>
+<circle id="node-door-620" cx="1691.0" cy="225.0" r="4" fill="#2F7FEB" fill-opacity="0"/>
+<circle id="node-door-618" cx="1734.9" cy="225.0" r="4" fill="#2F7FEB" fill-opacity="0"/>
+<circle id="node-door-616" cx="1778.8" cy="225.0" r="4" fill="#2F7FEB" fill-opacity="0"/>
+<circle id="node-door-614" cx="1822.6" cy="225.0" r="4" fill="#2F7FEB" fill-opacity="0"/>
+<circle id="node-door-612" cx="1866.5" cy="225.0" r="4" fill="#2F7FEB" fill-opacity="0"/>
+<circle id="node-door-608" cx="1910.3" cy="225.0" r="4" fill="#2F7FEB" fill-opacity="0"/>
+<circle id="node-door-606" cx="1954.2" cy="225.0" r="4" fill="#2F7FEB" fill-opacity="0"/>
+<circle id="node-door-604" cx="1998.1" cy="225.0" r="4" fill="#2F7FEB" fill-opacity="0"/>
+<circle id="node-stairs-5" cx="2047.5" cy="175.0" r="4" fill="#2F7FEB" fill-opacity="0"/>
+<circle id="node-door-649" cx="516.2" cy="255.0" r="4" fill="#2F7FEB" fill-opacity="0"/>
+<circle id="node-door-647" cx="608.8" cy="255.0" r="4" fill="#2F7FEB" fill-opacity="0"/>
+<circle id="node-door-645" cx="701.2" cy="255.0" r="4" fill="#2F7FEB" fill-opacity="0"/>
+<circle id="node-door-643" cx="793.8" cy="255.0" r="4" fill="#2F7FEB" fill-opacity="0"/>
+<circle id="node-door-548" cx="1015.0" cy="255.0" r="4" fill="#2F7FEB" fill-opacity="0"/>
+<circle id="node-door-639" cx="1518.4" cy="265.0" r="4" fill="#2F7FEB" fill-opacity="0"/>
+<circle id="node-door-613" cx="1585.3" cy="265.0" r="4" fill="#2F7FEB" fill-opacity="0"/>
+<circle id="node-door-611" cx="1652.2" cy="265.0" r="4" fill="#2F7FEB" fill-opacity="0"/>
+<circle id="node-door-609" cx="1719.1" cy="265.0" r="4" fill="#2F7FEB" fill-opacity="0"/>
+<circle id="node-door-607" cx="1785.9" cy="265.0" r="4" fill="#2F7FEB" fill-opacity="0"/>
+<circle id="node-door-605" cx="1852.8" cy="265.0" r="4" fill="#2F7FEB" fill-opacity="0"/>
+<circle id="node-door-603" cx="1919.7" cy="265.0" r="4" fill="#2F7FEB" fill-opacity="0"/>
+<circle id="node-door-601" cx="1986.6" cy="265.0" r="4" fill="#2F7FEB" fill-opacity="0"/>
+</g>
+<g id="labels">
+<text x="844.5" y="180.0" font-family="Arial, sans-serif" font-size="19" fill="#4A5A72" text-anchor="middle" dominant-baseline="middle">650</text>
+<text x="941.5" y="180.0" font-family="Arial, sans-serif" font-size="19" fill="#4A5A72" text-anchor="middle" dominant-baseline="middle">648</text>
+<text x="1097.9" y="180.0" font-family="Arial, sans-serif" font-size="19" fill="#4A5A72" text-anchor="middle" dominant-baseline="middle">646</text>
+<text x="1153.6" y="180.0" font-family="Arial, sans-serif" font-size="19" fill="#4A5A72" text-anchor="middle" dominant-baseline="middle">644</text>
+<text x="1209.3" y="180.0" font-family="Arial, sans-serif" font-size="19" fill="#4A5A72" text-anchor="middle" dominant-baseline="middle">642</text>
+<text x="1265.0" y="180.0" font-family="Arial, sans-serif" font-size="19" fill="#4A5A72" text-anchor="middle" dominant-baseline="middle">640</text>
+<text x="1320.7" y="180.0" font-family="Arial, sans-serif" font-size="19" fill="#4A5A72" text-anchor="middle" dominant-baseline="middle">628</text>
+<text x="1376.4" y="180.0" font-family="Arial, sans-serif" font-size="19" fill="#4A5A72" text-anchor="middle" dominant-baseline="middle">632</text>
+<text x="1432.1" y="180.0" font-family="Arial, sans-serif" font-size="19" fill="#4A5A72" text-anchor="middle" dominant-baseline="middle">632</text>
+<text x="1478.8" y="180.0" font-family="Arial, sans-serif" font-size="19" fill="#4A5A72" text-anchor="middle" dominant-baseline="middle" transform="rotate(-90.0 1478.8 180.0)">630</text>
+<text x="1559.4" y="180.0" font-family="Arial, sans-serif" font-size="19" fill="#4A5A72" text-anchor="middle" dominant-baseline="middle">628</text>
+<text x="1603.3" y="180.0" font-family="Arial, sans-serif" font-size="19" fill="#4A5A72" text-anchor="middle" dominant-baseline="middle">626</text>
+<text x="1647.2" y="180.0" font-family="Arial, sans-serif" font-size="19" fill="#4A5A72" text-anchor="middle" dominant-baseline="middle">622</text>
+<text x="1691.0" y="180.0" font-family="Arial, sans-serif" font-size="19" fill="#4A5A72" text-anchor="middle" dominant-baseline="middle">620</text>
+<text x="1734.9" y="180.0" font-family="Arial, sans-serif" font-size="19" fill="#4A5A72" text-anchor="middle" dominant-baseline="middle">618</text>
+<text x="1778.8" y="180.0" font-family="Arial, sans-serif" font-size="19" fill="#4A5A72" text-anchor="middle" dominant-baseline="middle">616</text>
+<text x="1822.6" y="180.0" font-family="Arial, sans-serif" font-size="19" fill="#4A5A72" text-anchor="middle" dominant-baseline="middle">614</text>
+<text x="1866.5" y="180.0" font-family="Arial, sans-serif" font-size="19" fill="#4A5A72" text-anchor="middle" dominant-baseline="middle">612</text>
+<text x="1910.3" y="180.0" font-family="Arial, sans-serif" font-size="19" fill="#4A5A72" text-anchor="middle" dominant-baseline="middle">608</text>
+<text x="1954.2" y="180.0" font-family="Arial, sans-serif" font-size="19" fill="#4A5A72" text-anchor="middle" dominant-baseline="middle">606</text>
+<text x="1998.1" y="180.0" font-family="Arial, sans-serif" font-size="19" fill="#4A5A72" text-anchor="middle" dominant-baseline="middle">604</text>
+<text x="516.2" y="285.0" font-family="Arial, sans-serif" font-size="19" fill="#4A5A72" text-anchor="middle" dominant-baseline="middle">649</text>
+<text x="608.8" y="285.0" font-family="Arial, sans-serif" font-size="19" fill="#4A5A72" text-anchor="middle" dominant-baseline="middle">647</text>
+<text x="701.2" y="285.0" font-family="Arial, sans-serif" font-size="19" fill="#4A5A72" text-anchor="middle" dominant-baseline="middle">645</text>
+<text x="793.8" y="285.0" font-family="Arial, sans-serif" font-size="19" fill="#4A5A72" text-anchor="middle" dominant-baseline="middle">643</text>
+<text x="1015.0" y="287.5" font-family="Arial, sans-serif" font-size="19" fill="#4A5A72" text-anchor="middle" dominant-baseline="middle">548</text>
+<text x="1518.4" y="305.0" font-family="Arial, sans-serif" font-size="19" fill="#4A5A72" text-anchor="middle" dominant-baseline="middle">639</text>
+<text x="1585.3" y="305.0" font-family="Arial, sans-serif" font-size="19" fill="#4A5A72" text-anchor="middle" dominant-baseline="middle">613</text>
+<text x="1652.2" y="305.0" font-family="Arial, sans-serif" font-size="19" fill="#4A5A72" text-anchor="middle" dominant-baseline="middle">611</text>
+<text x="1719.1" y="305.0" font-family="Arial, sans-serif" font-size="19" fill="#4A5A72" text-anchor="middle" dominant-baseline="middle">609</text>
+<text x="1785.9" y="305.0" font-family="Arial, sans-serif" font-size="19" fill="#4A5A72" text-anchor="middle" dominant-baseline="middle">607</text>
+<text x="1852.8" y="305.0" font-family="Arial, sans-serif" font-size="19" fill="#4A5A72" text-anchor="middle" dominant-baseline="middle">605</text>
+<text x="1919.7" y="305.0" font-family="Arial, sans-serif" font-size="19" fill="#4A5A72" text-anchor="middle" dominant-baseline="middle">603</text>
+<text x="1986.6" y="305.0" font-family="Arial, sans-serif" font-size="19" fill="#4A5A72" text-anchor="middle" dominant-baseline="middle">601</text>
+<text x="1270" y="347.5" font-family="Arial, sans-serif" font-size="22" fill="#9AA5B5" text-anchor="middle">АТРИУМ</text>
+</g>
+</svg>

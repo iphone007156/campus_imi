@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../theme/app_theme.dart';
+import '../models/department_model.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -16,35 +17,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  final _groupController = TextEditingController();
+
+  String? _selectedDeptId;
+  String? _selectedGroup;
+  int _calculatedCourse = 1; // ✅ Сюда сохраняем вычисленный курс
 
   bool _isLoading = false;
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
 
-  // ✅ РАЗРЕШЁННЫЕ ДОМЕНЫ (включая iCloud)
   static const List<String> _allowedDomains = [
-    // Университетские
-    's-vfu.ru',
-    'students.s-vfu.ru',
-
-    // Российские
-    'yandex.ru',
-    'ya.ru',
-    'mail.ru',
-    'inbox.ru',
-    'list.ru',
-    'bk.ru',
-    'internet.ru',
-
-    // Google
-    'gmail.com',
-    'googlemail.com',
-
-    // ✅ Apple iCloud
-    'icloud.com',
-    'me.com',
-    'mac.com',
+    's-vfu.ru', 'students.s-vfu.ru', 'yandex.ru', 'ya.ru', 'mail.ru', 'inbox.ru', 'list.ru', 'bk.ru', 'internet.ru', 'gmail.com', 'googlemail.com', 'icloud.com', 'me.com', 'mac.com',
   ];
 
   @override
@@ -53,47 +36,53 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
-    _groupController.dispose();
     super.dispose();
+  }
+
+  // ✅ Функция автоматического вычисления курса по номеру группы
+  int _calculateCourse(String groupName) {
+    try {
+      final match = RegExp(r'(\d{2})$').firstMatch(groupName);
+      if (match == null) return 1;
+
+      final yearSuffix = int.parse(match.group(1)!);
+      final admissionYear = 2000 + yearSuffix;
+
+      final now = DateTime.now();
+      // Учебный год начинается с сентября
+      final currentAcademicYear = now.month >= 9 ? now.year : now.year - 1;
+
+      int course = currentAcademicYear - admissionYear + 1;
+
+      // Ограничиваем от 1 до 5
+      if (course < 1) return 1;
+      if (course > 5) return 5;
+      return course;
+    } catch (e) {
+      return 1;
+    }
   }
 
   String? _validateEmail(String? value) {
     if (value == null || value.isEmpty) return 'Введите email';
     if (!value.contains('@')) return 'Некорректный email';
-
     final domain = value.split('@').last.toLowerCase();
-    if (!_allowedDomains.contains(domain)) {
-      return 'Этот домен не поддерживается';
-    }
-    return null;
-  }
-
-  String? _validatePassword(String? value) {
-    if (value == null || value.isEmpty) return 'Введите пароль';
-    if (value.length < 6) return 'Минимум 6 символов';
-    return null;
-  }
-
-  String? _validateName(String? value) {
-    if (value == null || value.isEmpty) return 'Введите ФИО';
-    if (value.length < 3) return 'Слишком короткое ФИО';
-    return null;
-  }
-
-  String? _validateGroup(String? value) {
-    if (value == null || value.isEmpty) return 'Введите группу';
+    if (!_allowedDomains.contains(domain)) return 'Этот домен не поддерживается';
     return null;
   }
 
   Future<void> _register() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_selectedDeptId == null || _selectedGroup == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Выберите подразделение и группу'), backgroundColor: Colors.red),
+      );
+      return;
+    }
 
     if (_passwordController.text != _confirmPasswordController.text) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Пароли не совпадают'),
-          backgroundColor: Colors.red,
-        ),
+        const SnackBar(content: Text('Пароли не совпадают'), backgroundColor: Colors.red),
       );
       return;
     }
@@ -101,8 +90,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final credential =
-      await FirebaseAuth.instance.createUserWithEmailAndPassword(
+      final credential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
@@ -112,13 +100,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       await user.updateDisplayName(_nameController.text.trim());
 
+      final deptDoc = await FirebaseFirestore.instance.collection('departments').doc(_selectedDeptId).get();
+      final deptName = deptDoc.data()?['name'] ?? '';
+
+      // ✅ Сохраняем курс в формате "4 курс"
       await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
         'name': _nameController.text.trim(),
         'email': _emailController.text.trim(),
-        'group': _groupController.text.trim(),
-        'institute': 'ИМИ СВФУ',
-        'course': '1 курс',
-        'direction': 'Прикладная математика',
+        'group': _selectedGroup,
+        'departmentId': _selectedDeptId,
+        'institute': deptName,
+        'course': '$_calculatedCourse курс', // <-- Записываем вычисленный курс
         'phone': '',
         'role': 'student',
         'emailVerified': false,
@@ -128,42 +120,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       await user.sendEmailVerification();
 
-      if (mounted) {
-        _showVerificationDialog();
-      }
-    } on FirebaseAuthException catch (e) {
-      String message = 'Ошибка регистрации';
-      switch (e.code) {
-        case 'email-already-in-use':
-          message = 'Этот email уже зарегистрирован';
-          break;
-        case 'invalid-email':
-          message = 'Некорректный email';
-          break;
-        case 'weak-password':
-          message = 'Слишком простой пароль';
-          break;
-        case 'operation-not-allowed':
-          message = 'Регистрация временно отключена';
-          break;
-      }
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(message),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
+      if (mounted) _showVerificationDialog();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Ошибка: $e'),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-          ),
+          SnackBar(content: Text('Ошибка: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -176,43 +137,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.email_outlined, color: AppTheme.accentBlue),
-            SizedBox(width: 8),
-            Text('Подтвердите email'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Мы отправили письмо на адрес:',
-              style: TextStyle(fontSize: 13, color: AppTheme.textMuted),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _emailController.text.trim(),
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: AppTheme.textDark,
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Перейдите по ссылке в письме, чтобы подтвердить аккаунт.',
-              style: TextStyle(fontSize: 13, height: 1.5),
-            ),
-          ],
-        ),
+        title: const Text('Подтвердите email'),
+        content: Text('Мы отправили письмо на ${_emailController.text.trim()}'),
         actions: [
           TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pop(context);
-            },
+            onPressed: () { Navigator.pop(context); Navigator.pop(context); },
             child: const Text('Понятно'),
           ),
         ],
@@ -223,14 +152,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Регистрация'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, size: 18),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      backgroundColor: AppTheme.backgroundGray,
+      appBar: AppBar(title: const Text('Регистрация')),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Form(
@@ -238,154 +161,145 @@ class _RegisterScreenState extends State<RegisterScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 8),
-              const Icon(
-                Icons.person_add_alt_1,
-                size: 60,
-                color: AppTheme.primaryNavy,
-              ),
+              const Icon(Icons.person_add_alt_1, size: 60, color: AppTheme.primaryNavy),
               const SizedBox(height: 16),
-              const Text(
-                'Создать аккаунт',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.textDark,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Регистрация доступна только студентам ИМИ СВФУ',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppTheme.textMuted, fontSize: 13),
-              ),
+              Text('Создать аккаунт', textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall),
               const SizedBox(height: 24),
 
               TextFormField(
                 controller: _nameController,
-                enabled: !_isLoading,
-                decoration: const InputDecoration(
-                  labelText: 'ФИО',
-                  prefixIcon: Icon(Icons.person_outline),
-                  border: OutlineInputBorder(),
-                ),
-                validator: _validateName,
+                decoration: const InputDecoration(labelText: 'ФИО', prefixIcon: Icon(Icons.person_outline), border: OutlineInputBorder()),
+                validator: (v) => (v == null || v.isEmpty) ? 'Введите ФИО' : null,
               ),
               const SizedBox(height: 16),
 
-              TextFormField(
-                controller: _groupController,
-                enabled: !_isLoading,
-                decoration: const InputDecoration(
-                  labelText: 'Группа',
-                  prefixIcon: Icon(Icons.groups_outlined),
-                  border: OutlineInputBorder(),
-                  hintText: 'Например: Б-ПИГМУ-24',
-                ),
-                validator: _validateGroup,
+              // ✅ 1. Выбор подразделения
+              StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance.collection('departments').orderBy('shortName').snapshots(),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                  final depts = snapshot.data!.docs.map((d) => Department.fromMap(d.id, d.data() as Map<String, dynamic>)).toList();
+
+                  final isValid = depts.any((d) => d.id == _selectedDeptId);
+
+                  return DropdownButtonFormField<String>(
+                    decoration: const InputDecoration(labelText: 'Подразделение', border: OutlineInputBorder()),
+                    value: isValid ? _selectedDeptId : null,
+                    dropdownColor: Theme.of(context).cardColor,
+                    items: depts.map((d) => DropdownMenuItem(value: d.id, child: Text(d.shortName))).toList(),
+                    onChanged: _isLoading ? null : (val) {
+                      setState(() {
+                        _selectedDeptId = val;
+                        _selectedGroup = null;
+                      });
+                    },
+                  );
+                },
               ),
+              const SizedBox(height: 16),
+
+              // ✅ 2. Выбор группы (фильтруется по ID подразделения)
+              if (_selectedDeptId != null)
+                StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('groups')
+                      .where('departmentId', isEqualTo: _selectedDeptId)
+                      .orderBy('name')
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    final groups = snapshot.data?.docs.map((d) => d['name'] as String).toList() ?? [];
+
+                    final isValidGroup = groups.contains(_selectedGroup);
+
+                    return DropdownButtonFormField<String>(
+                      decoration: const InputDecoration(labelText: 'Группа', border: OutlineInputBorder()),
+                      value: isValidGroup ? _selectedGroup : null,
+                      dropdownColor: Theme.of(context).cardColor,
+                      items: groups.map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
+                      onChanged: _isLoading ? null : (val) {
+                        setState(() {
+                          _selectedGroup = val;
+                          // ✅ При выборе группы сразу вычисляем курс
+                          if (val != null) {
+                            _calculatedCourse = _calculateCourse(val);
+                          }
+                        });
+                      },
+                    );
+                  },
+                ),
+              const SizedBox(height: 16),
+
+              // ✅ 3. Поле Курс (только для чтения)
+              if (_selectedGroup != null)
+                TextFormField(
+                  key: ValueKey(_calculatedCourse), // Обновляем поле при смене группы
+                  initialValue: '$_calculatedCourse курс',
+                  readOnly: true,
+                  enabled: false,
+                  decoration: InputDecoration(
+                    labelText: 'Курс (автоматически)',
+                    prefixIcon: const Icon(Icons.layers_outlined),
+                    border: const OutlineInputBorder(),
+                    filled: true,
+                    fillColor: Colors.grey.withValues(alpha: 0.1),
+                    helperText: 'Определяется автоматически по номеру группы',
+                  ),
+                ),
               const SizedBox(height: 16),
 
               TextFormField(
                 controller: _emailController,
-                enabled: !_isLoading,
-                keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(
-                  labelText: 'Email',
-                  prefixIcon: Icon(Icons.email_outlined),
-                  border: OutlineInputBorder(),
-                  hintText: 'Поддерживается: Gmail, Yandex, Mail, iCloud',
-                  helperText: 'Поддерживается: Gmail, Yandex, Mail, iCloud',
-                ),
+                decoration: const InputDecoration(labelText: 'Email', prefixIcon: Icon(Icons.email_outlined), border: OutlineInputBorder()),
                 validator: _validateEmail,
               ),
               const SizedBox(height: 16),
 
               TextFormField(
                 controller: _passwordController,
-                enabled: !_isLoading,
                 obscureText: _obscurePassword,
                 decoration: InputDecoration(
                   labelText: 'Пароль',
                   prefixIcon: const Icon(Icons.lock_outline),
                   border: const OutlineInputBorder(),
                   suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscurePassword
-                          ? Icons.visibility_off
-                          : Icons.visibility,
-                    ),
-                    onPressed: () => setState(
-                            () => _obscurePassword = !_obscurePassword),
+                    icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
+                    onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                   ),
                 ),
-                validator: _validatePassword,
+                validator: (v) => (v == null || v.length < 6) ? 'Минимум 6 символов' : null,
               ),
               const SizedBox(height: 16),
 
               TextFormField(
                 controller: _confirmPasswordController,
-                enabled: !_isLoading,
                 obscureText: _obscureConfirm,
                 decoration: InputDecoration(
                   labelText: 'Повторите пароль',
                   prefixIcon: const Icon(Icons.lock_outline),
                   border: const OutlineInputBorder(),
                   suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscureConfirm
-                          ? Icons.visibility_off
-                          : Icons.visibility,
-                    ),
-                    onPressed: () =>
-                        setState(() => _obscureConfirm = !_obscureConfirm),
+                    icon: Icon(_obscureConfirm ? Icons.visibility_off : Icons.visibility),
+                    onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
                   ),
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Повторите пароль';
-                  }
-                  if (value != _passwordController.text) {
-                    return 'Пароли не совпадают';
-                  }
-                  return null;
-                },
+                validator: (v) => (v != _passwordController.text) ? 'Пароли не совпадают' : null,
               ),
               const SizedBox(height: 24),
 
               ElevatedButton(
                 onPressed: _isLoading ? null : _register,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primaryNavy,
-                  foregroundColor: Colors.white,
+                  backgroundColor: Theme.of(context).colorScheme.primary,
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
                 child: _isLoading
-                    ? const SizedBox(
-                  height: 20,
-                  width: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white,
-                  ),
-                )
-                    : const Text(
-                  'Зарегистрироваться',
-                  style: TextStyle(fontSize: 16),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              TextButton(
-                onPressed: _isLoading ? null : () => Navigator.pop(context),
-                child: const Text(
-                  'Уже есть аккаунт? Войти',
-                  style: TextStyle(color: AppTheme.accentBlue),
-                ),
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text('Зарегистрироваться', style: TextStyle(color: Colors.white, fontSize: 16)),
               ),
             ],
           ),

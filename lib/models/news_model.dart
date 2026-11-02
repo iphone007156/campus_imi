@@ -9,9 +9,12 @@ class News {
   final String category;
   final String authorName;
   final String authorId;
-  final String imageUrl;
+  final String departmentId; // ✅ ПРИВЯЗКА К ПОДРАЗДЕЛЕНИЮ
+  final List<String> imageUrls;
   final String imageBase64;
   final DateTime createdAt;
+  final String sourceName;
+  final String sourceUrl;
 
   News({
     required this.id,
@@ -22,18 +25,21 @@ class News {
     required this.category,
     required this.authorName,
     required this.authorId,
-    required this.imageUrl,
+    this.departmentId = '', // По умолчанию пусто (для общих новостей)
+    required this.imageUrls,
     this.imageBase64 = '',
     required this.createdAt,
+    this.sourceName = '',
+    this.sourceUrl = '',
   });
 
-  bool get hasImage => imageUrl.isNotEmpty || imageBase64.isNotEmpty;
+  bool get hasImage => imageUrls.isNotEmpty || imageBase64.isNotEmpty;
+  String get mainImage => imageUrls.isNotEmpty ? imageUrls.first : '';
+  bool get hasSource => sourceName.isNotEmpty || sourceUrl.isNotEmpty;
 
-  /// «5 мин назад», «2 ч назад», «Вчера»
   String get timeAgo {
     final now = DateTime.now();
     final diff = now.difference(createdAt);
-
     if (diff.inMinutes < 1) return 'только что';
     if (diff.inMinutes < 60) return '${diff.inMinutes} мин назад';
     if (diff.inHours < 24) return '${diff.inHours} ч назад';
@@ -43,6 +49,13 @@ class News {
   }
 
   factory News.fromMap(String id, Map<String, dynamic> map) {
+    List<String> urls = [];
+    if (map['imageUrls'] is List) {
+      urls = List<String>.from(map['imageUrls'].map((e) => e.toString()));
+    } else if (map['imageUrl'] != null && map['imageUrl'].toString().isNotEmpty) {
+      urls = [map['imageUrl'].toString()];
+    }
+
     return News(
       id: id,
       title: map['title'] ?? '',
@@ -52,9 +65,12 @@ class News {
       category: map['category'] ?? 'События',
       authorName: map['authorName'] ?? '',
       authorId: map['authorId'] ?? '',
-      imageUrl: map['imageUrl'] ?? '',
+      departmentId: map['departmentId'] ?? '', // ✅
+      imageUrls: urls,
       imageBase64: map['imageBase64'] ?? '',
       createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      sourceName: map['sourceName'] ?? '',
+      sourceUrl: map['sourceUrl'] ?? '',
     );
   }
 
@@ -67,9 +83,12 @@ class News {
       'category': category,
       'authorName': authorName,
       'authorId': authorId,
-      'imageUrl': imageUrl,
+      'departmentId': departmentId, // ✅
+      'imageUrls': imageUrls,
       'imageBase64': imageBase64,
       'createdAt': Timestamp.fromDate(createdAt),
+      'sourceName': sourceName,
+      'sourceUrl': sourceUrl,
     };
   }
 }

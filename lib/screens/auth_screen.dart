@@ -153,6 +153,8 @@ class _AuthScreenState extends State<AuthScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context); // ✅ Получаем текущую тему
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Вход для студентов'),
@@ -161,7 +163,7 @@ class _AuthScreenState extends State<AuthScreen> {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      backgroundColor: AppTheme.backgroundGray,
+      backgroundColor: theme.scaffoldBackgroundColor, // ✅ Динамический фон
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
         child: Form(
@@ -170,26 +172,27 @@ class _AuthScreenState extends State<AuthScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 40),
-              const Icon(
+              Icon(
                 Icons.school,
                 size: 80,
-                color: AppTheme.primaryNavy,
+                color: theme.colorScheme.primary, // ✅ Динамический цвет иконки
               ),
               const SizedBox(height: 24),
-              const Text(
+              Text(
                 'Добро пожаловать!',
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: theme.textTheme.headlineSmall?.copyWith(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
-                  color: AppTheme.textDark,
                 ),
               ),
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 'Войдите в свою учетную запись ИМИ СВФУ',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: AppTheme.textMuted),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.disabledColor, // ✅ Динамический цвет
+                ),
               ),
               const SizedBox(height: 40),
 
@@ -241,10 +244,10 @@ class _AuthScreenState extends State<AuthScreen> {
                       const ForgotPasswordScreen(),
                     ),
                   ),
-                  child: const Text(
+                  child: Text(
                     'Забыли пароль?',
                     style: TextStyle(
-                      color: AppTheme.accentBlue,
+                      color: theme.colorScheme.primary, // ✅ Динамический цвет
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -255,7 +258,7 @@ class _AuthScreenState extends State<AuthScreen> {
               ElevatedButton(
                 onPressed: _isLoading ? null : _signIn,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primaryNavy,
+                  backgroundColor: theme.colorScheme.primary, // ✅ Динамический фон
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
@@ -281,9 +284,11 @@ class _AuthScreenState extends State<AuthScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text(
+                  Text(
                     'Нет аккаунта? ',
-                    style: TextStyle(color: AppTheme.textMuted),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.disabledColor,
+                    ),
                   ),
                   TextButton(
                     onPressed: _isLoading
@@ -294,10 +299,10 @@ class _AuthScreenState extends State<AuthScreen> {
                         builder: (_) => const RegisterScreen(),
                       ),
                     ),
-                    child: const Text(
+                    child: Text(
                       'Зарегистрироваться',
                       style: TextStyle(
-                        color: AppTheme.accentBlue,
+                        color: theme.colorScheme.primary, // ✅ Динамический цвет
                         fontWeight: FontWeight.w600,
                       ),
                     ),

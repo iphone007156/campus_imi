@@ -1,53 +1,191 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart'; // ✅ Подключаем пакет
 
 class AppTheme {
-  // Цветовая палитра СВФУ (тёмно-синий университетский стиль)
+  // ── Палитра (Светлая) ──────────────────────────────
   static const Color primaryNavy = Color(0xFF1A2A5E);
   static const Color accentBlue = Color(0xFF3D6FA3);
+  static const Color accent = Color(0xFFFF6B35);
   static const Color lightBlue = Color(0xFFD6E4F0);
-  static const Color backgroundGray = Color(0xFFF0F4F8);
+  static const Color backgroundGray = Color(0xFFF7F9FC);
   static const Color cardWhite = Color(0xFFFFFFFF);
   static const Color textDark = Color(0xFF1C2B3A);
   static const Color textMuted = Color(0xFF7A92A8);
   static const Color gold = Color(0xFFB8922A);
   static const Color divider = Color(0xFFDDE6EF);
 
-  static ThemeData get theme => ThemeData(
-    useMaterial3: true,
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: primaryNavy,
-      brightness: Brightness.light,
+  // ── Палитра (Тёмная) ───────────────────────────────
+  static const Color darkBg = Color(0xFF121212);
+  static const Color darkCard = Color(0xFF1E1E1E);
+  static const Color darkSurface = Color(0xFF2C2C2C);
+  static const Color darkText = Color(0xFFE8E8E8);
+  static const Color darkTextMuted = Color(0xFF9E9E9E);
+  static const Color darkDivider = Color(0xFF333333);
+
+  // ── Радиусы ────────────────────────────────────────
+  static const double radiusSm = 10;
+  static const double radiusMd = 16;
+  static const double radiusLg = 20;
+  static const double radiusPill = 999;
+
+  // ── Отступы ────────────────────────────────────────
+  static const double s4 = 4;
+  static const double s8 = 8;
+  static const double s12 = 12;
+  static const double s16 = 16;
+  static const double s20 = 20;
+  static const double s24 = 24;
+
+  // ── Тени ───────────────────────────────────────────
+  static List<BoxShadow> get shadowSoft => [
+    BoxShadow(
+      color: Colors.black.withValues(alpha: 0.04),
+      blurRadius: 12,
+      offset: const Offset(0, 2),
     ),
-    scaffoldBackgroundColor: backgroundGray,
-    fontFamily: 'Roboto',
-    appBarTheme: const AppBarTheme(
-      backgroundColor: primaryNavy,
-      foregroundColor: Colors.white,
-      elevation: 0,
-      centerTitle: true,
-      titleTextStyle: TextStyle(
-        color: Colors.white,
-        fontSize: 17,
-        fontWeight: FontWeight.w600,
-        letterSpacing: 0.3,
+  ];
+
+  // ── Тема ───────────────────────────────────────────
+  static ThemeData get theme => _buildTheme(Brightness.light);
+  static ThemeData get darkTheme => _buildTheme(Brightness.dark);
+
+  static ThemeData _buildTheme(Brightness brightness) {
+    final isDark = brightness == Brightness.dark;
+    final bg = isDark ? darkBg : backgroundGray;
+    final card = isDark ? darkCard : cardWhite;
+    final txt = isDark ? darkText : textDark;
+    final muted = isDark ? darkTextMuted : textMuted;
+    final div = isDark ? darkDivider : divider;
+
+    // ✅ Применяем базовый шрифт Manrope (аналог SF Pro)
+    final baseTextTheme = GoogleFonts.manropeTextTheme(
+      isDark ? ThemeData.dark().textTheme : ThemeData.light().textTheme,
+    );
+
+    final base = ThemeData(
+      useMaterial3: true,
+      brightness: brightness,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: primaryNavy,
+        brightness: brightness,
+        surface: card,
+        background: bg,
       ),
-    ),
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: cardWhite,
-        foregroundColor: primaryNavy,
-        elevation: 1,
-        shadowColor: Colors.black12,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-          side: BorderSide(color: divider),
+      scaffoldBackgroundColor: bg,
+      cardColor: card,
+    );
+
+    return base.copyWith(
+      appBarTheme: AppBarTheme(
+        backgroundColor: isDark ? darkCard : primaryNavy,
+        foregroundColor: isDark ? darkText : Colors.white,
+        elevation: 0,
+        centerTitle: true,
+        titleTextStyle: GoogleFonts.manrope( // ✅ Заголовок AppBar (как в iOS)
+          color: isDark ? darkText : Colors.white,
+          fontSize: 18,
+          fontWeight: FontWeight.w700,
+          letterSpacing: -0.4, // Сжимаем буквы для "яблочного" стиля
         ),
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
-        textStyle: const TextStyle(
+      ),
+
+      // ✅ Настраиваем типографику
+      textTheme: baseTextTheme.copyWith(
+        headlineSmall: GoogleFonts.manrope(
+          fontSize: 24,
+          fontWeight: FontWeight.w800,
+          color: txt,
+          letterSpacing: -0.8, // Плотная посадка
+        ),
+        titleMedium: GoogleFonts.manrope(
+          fontSize: 17,
+          fontWeight: FontWeight.w700,
+          color: txt,
+          letterSpacing: -0.4,
+        ),
+        titleSmall: GoogleFonts.manrope(
           fontSize: 15,
+          fontWeight: FontWeight.w600,
+          color: txt,
+          letterSpacing: -0.2,
+        ),
+        bodyMedium: GoogleFonts.manrope(
+          fontSize: 15,
+          height: 1.45, // Идеальный интервал для чтения
+          color: txt,
+          fontWeight: FontWeight.w500,
+          letterSpacing: -0.1,
+        ),
+        bodySmall: GoogleFonts.manrope(
+          fontSize: 13,
+          color: muted,
+          height: 1.4,
           fontWeight: FontWeight.w500,
         ),
+        labelSmall: GoogleFonts.manrope(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: muted,
+          letterSpacing: 0.8,
+        ),
       ),
-    ),
-  );
+
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: isDark ? accentBlue : primaryNavy,
+          foregroundColor: Colors.white,
+          minimumSize: const Size.fromHeight(52),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radiusMd)),
+          textStyle: GoogleFonts.manrope(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.2,
+          ),
+        ),
+      ),
+
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: isDark ? accent : primaryNavy,
+          minimumSize: const Size.fromHeight(48),
+          side: BorderSide(color: div, width: 1),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radiusMd)),
+          textStyle: GoogleFonts.manrope(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: isDark ? darkSurface : card,
+        contentPadding: const EdgeInsets.symmetric(horizontal: s16, vertical: s16),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(radiusMd), borderSide: BorderSide.none),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(radiusMd), borderSide: BorderSide(color: div)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(radiusMd), borderSide: const BorderSide(color: accent, width: 1.5)),
+        hintStyle: GoogleFonts.manrope(color: muted, fontSize: 15),
+        labelStyle: GoogleFonts.manrope(color: muted, fontSize: 15),
+      ),
+
+      // ✅ ГЛОБАЛЬНЫЙ СТИЛЬ ВКЛАДОК (БЕЗ ОВАЛОВ)
+      tabBarTheme: TabBarThemeData(
+        indicator: UnderlineTabIndicator(
+          borderSide: BorderSide(
+            width: 3.0,
+            color: isDark ? gold : Colors.white,
+          ),
+        ),
+        labelColor: isDark ? darkText : Colors.white,
+        unselectedLabelColor: isDark ? darkTextMuted : Colors.white70,
+        labelStyle: GoogleFonts.manrope(
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+        ),
+        dividerColor: Colors.transparent,
+      ),
+
+      dividerTheme: DividerThemeData(color: div, thickness: 1, space: 1),
+    );
+  }
 }

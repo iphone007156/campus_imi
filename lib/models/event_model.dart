@@ -10,7 +10,8 @@ class Event {
   final int points;
   final String organizer;
   final String organizerId;
-  final String organizerRole; // ✅ НОВОЕ: 'admin' или 'activist'
+  final String organizerRole;
+  final String departmentId; // ✅ ПРИВЯЗКА К ПОДРАЗДЕЛЕНИЮ
   final String imageUrl;
   final String imageBase64;
   final List<String> participants;
@@ -30,7 +31,8 @@ class Event {
     required this.points,
     required this.organizer,
     required this.organizerId,
-    this.organizerRole = 'activist', // по умолчанию активист
+    this.organizerRole = 'activist',
+    this.departmentId = '', // По умолчанию пусто (для всех)
     required this.imageUrl,
     this.imageBase64 = '',
     required this.participants,
@@ -75,6 +77,7 @@ class Event {
       organizer: map['organizer'] ?? '',
       organizerId: map['organizerId'] ?? '',
       organizerRole: map['organizerRole'] ?? 'activist',
+      departmentId: map['departmentId'] ?? '', // ✅
       imageUrl: map['imageUrl'] ?? '',
       imageBase64: map['imageBase64'] ?? '',
       participants: List<String>.from(map['participants'] ?? []),
@@ -97,6 +100,7 @@ class Event {
       'organizer': organizer,
       'organizerId': organizerId,
       'organizerRole': organizerRole,
+      'departmentId': departmentId, // ✅
       'imageUrl': imageUrl,
       'imageBase64': imageBase64,
       'participants': participants,
@@ -119,6 +123,7 @@ class Event {
     String? organizer,
     String? organizerId,
     String? organizerRole,
+    String? departmentId,
     String? imageUrl,
     String? imageBase64,
     List<String>? participants,
@@ -139,6 +144,7 @@ class Event {
       organizer: organizer ?? this.organizer,
       organizerId: organizerId ?? this.organizerId,
       organizerRole: organizerRole ?? this.organizerRole,
+      departmentId: departmentId ?? this.departmentId,
       imageUrl: imageUrl ?? this.imageUrl,
       imageBase64: imageBase64 ?? this.imageBase64,
       participants: participants ?? this.participants,

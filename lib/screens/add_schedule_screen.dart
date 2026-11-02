@@ -4,7 +4,6 @@ import '../theme/app_theme.dart';
 import '../models/lesson.dart';
 
 class AddScheduleScreen extends StatefulWidget {
-  /// ✅ null = создание, не null = редактирование
   final Lesson? lesson;
 
   const AddScheduleScreen({super.key, this.lesson});
@@ -17,7 +16,6 @@ class AddScheduleScreen extends StatefulWidget {
 
 class _AddScheduleScreenState extends State<AddScheduleScreen> {
   final _formKey = GlobalKey<FormState>();
-
   final _subjectController = TextEditingController();
   final _teacherController = TextEditingController();
   final _roomController = TextEditingController();
@@ -26,40 +24,22 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
   int _selectedWeek = 0;
   int _selectedTimeIndex = 0;
   String _selectedType = 'лек';
-  String _selectedGroup = 'Б-ПИГМУ-24';
+  String? _selectedGroup;
 
   bool _isLoading = false;
 
-  static const List<String> _groups = [
-    'Б-ПИГМУ-24',
-    'Б-ПИЭ-24',
-    'Б-ИВТ-24-1',
-    'Б-ИВТ-24-2',
-    'Б-ФИИТ-24',
-  ];
+  static const List<String> _fallbackGroups = ['Б-ПИГМУ-24'];
 
   static const List<String> _days = [
-    'Понедельник',
-    'Вторник',
-    'Среда',
-    'Четверг',
-    'Пятница',
-    'Суббота',
+    'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота',
   ];
 
   static const List<String> _weeks = [
-    'Общая (каждую неделю)',
-    'Нечётная',
-    'Чётная',
+    'Общая (каждую неделю)', 'Нечётная', 'Чётная',
   ];
 
   static const List<String> _timeSlots = [
-    '8:00-9:35',
-    '9:50-11:25',
-    '11:40-13:15',
-    '14:00-15:35',
-    '15:50-17:25',
-    '17:40-19:15',
+    '8:00-9:35', '9:50-11:25', '11:40-13:15', '14:00-15:35', '15:50-17:25', '17:40-19:15',
   ];
 
   static const List<Map<String, String>> _types = [
@@ -72,7 +52,6 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
   @override
   void initState() {
     super.initState();
-    // ✅ Если редактирование — заполняем поля
     if (widget.lesson != null) {
       final lesson = widget.lesson!;
       _subjectController.text = lesson.subject;
@@ -98,6 +77,12 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
 
   Future<void> _saveSchedule() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_selectedGroup == null || _selectedGroup!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Выберите группу'), backgroundColor: Colors.red),
+      );
+      return;
+    }
 
     setState(() => _isLoading = true);
 
@@ -110,29 +95,31 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
         room: _roomController.text.trim(),
         type: _selectedType,
         dayIndex: _selectedDay,
-        group: _selectedGroup,
+        group: _selectedGroup!,
         week: _selectedWeek,
       );
 
       if (widget.isEditing) {
-        // ✅ Редактирование
         await FirebaseFirestore.instance
             .collection('lessons')
             .doc(lesson.id)
             .update(lesson.toMap());
       } else {
-        // ✅ Создание
         await FirebaseFirestore.instance
             .collection('lessons')
             .add(lesson.toMap());
       }
 
+      // ✅ Сохраняем группу в отдельную коллекцию
+      await FirebaseFirestore.instance
+          .collection('groups')
+          .doc(_selectedGroup)
+          .set({'name': _selectedGroup}, SetOptions(merge: true));
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(widget.isEditing
-                ? '✅ Занятие обновлено!'
-                : '✅ Занятие добавлено!'),
+            content: Text(widget.isEditing ? '✅ Занятие обновлено!' : '✅ Занятие добавлено!'),
             backgroundColor: Colors.green,
             behavior: SnackBarBehavior.floating,
           ),
@@ -140,7 +127,6 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
         Navigator.pop(context, true);
       }
     } catch (e) {
-      print('❌ Ошибка: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -159,20 +145,13 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-            widget.isEditing ? 'Редактировать занятие' : 'Добавить занятие'),
+        title: Text(widget.isEditing ? 'Редактировать занятие' : 'Добавить занятие'),
         actions: [
           TextButton(
             onPressed: _isLoading ? null : _saveSchedule,
             child: _isLoading
-                ? const SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(
-                  strokeWidth: 2, color: Colors.white),
-            )
-                : const Text('Сохранить',
-                style: TextStyle(color: Colors.white, fontSize: 15)),
+                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Text('Сохранить', style: TextStyle(color: Colors.white, fontSize: 15)),
           ),
         ],
       ),
@@ -187,35 +166,23 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
               _SectionTitle('День недели'),
               const SizedBox(height: 8),
               Wrap(
-                spacing: 8,
-                runSpacing: 8,
+                spacing: 8, runSpacing: 8,
                 children: List.generate(_days.length, (i) {
                   final isSelected = i == _selectedDay;
                   return GestureDetector(
                     onTap: () => setState(() => _selectedDay = i),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                       decoration: BoxDecoration(
-                        color: isSelected
-                            ? AppTheme.primaryNavy
-                            : AppTheme.cardWhite,
+                        color: isSelected ? AppTheme.primaryNavy : AppTheme.cardWhite,
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: isSelected
-                              ? AppTheme.primaryNavy
-                              : AppTheme.divider,
-                        ),
+                        border: Border.all(color: isSelected ? AppTheme.primaryNavy : AppTheme.divider),
                       ),
                       child: Text(
                         _days[i],
                         style: TextStyle(
-                          color: isSelected
-                              ? Colors.white
-                              : AppTheme.textDark,
-                          fontWeight: isSelected
-                              ? FontWeight.w700
-                              : FontWeight.w500,
+                          color: isSelected ? Colors.white : AppTheme.textDark,
+                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                           fontSize: 13,
                         ),
                       ),
@@ -223,7 +190,6 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
                   );
                 }),
               ),
-
               const SizedBox(height: 20),
 
               _SectionTitle('Неделя'),
@@ -235,29 +201,20 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
                     onTap: () => setState(() => _selectedWeek = i),
                     child: Container(
                       margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       decoration: BoxDecoration(
-                        color: isSelected
-                            ? AppTheme.primaryNavy.withValues(alpha: 0.1)
-                            : AppTheme.cardWhite,
+                        color: isSelected ? AppTheme.primaryNavy.withValues(alpha: 0.1) : AppTheme.cardWhite,
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
-                          color: isSelected
-                              ? AppTheme.primaryNavy
-                              : AppTheme.divider,
+                          color: isSelected ? AppTheme.primaryNavy : AppTheme.divider,
                           width: isSelected ? 2 : 1,
                         ),
                       ),
                       child: Row(
                         children: [
                           Icon(
-                            isSelected
-                                ? Icons.radio_button_checked
-                                : Icons.radio_button_off,
-                            color: isSelected
-                                ? AppTheme.primaryNavy
-                                : AppTheme.textMuted,
+                            isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
+                            color: isSelected ? AppTheme.primaryNavy : AppTheme.textMuted,
                             size: 22,
                           ),
                           const SizedBox(width: 12),
@@ -265,9 +222,7 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
                             _weeks[i],
                             style: TextStyle(
                               color: AppTheme.textDark,
-                              fontWeight: isSelected
-                                  ? FontWeight.w600
-                                  : FontWeight.w400,
+                              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                               fontSize: 14,
                             ),
                           ),
@@ -277,38 +232,62 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
                   );
                 }),
               ),
-
               const SizedBox(height: 20),
 
+              // ✅ Группа теперь с поиском
               _SectionTitle('Группа'),
               const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                decoration: BoxDecoration(
-                  color: AppTheme.cardWhite,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppTheme.divider),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: _selectedGroup,
-                    isExpanded: true,
-                    icon: const Icon(Icons.arrow_drop_down),
-                    items: _groups.map((group) {
-                      return DropdownMenuItem(
+              StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance.collection('groups').orderBy('name').snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(12.0),
+                        child: CircularProgressIndicator(),
+                      ),
+                    );
+                  }
+
+                  final groups = snapshot.data?.docs
+                      .map((d) => d['name'] as String)
+                      .toList() ?? [];
+
+                  final finalGroups = groups.isEmpty ? _fallbackGroups : groups;
+
+                  if (_selectedGroup == null || !finalGroups.contains(_selectedGroup)) {
+                    _selectedGroup = finalGroups.first;
+                  }
+
+                  // ✅ DropdownMenu с встроенным поиском
+                  return DropdownMenu<String>(
+                    initialSelection: _selectedGroup,
+                    width: double.infinity,
+                    label: const Text('Поиск группы...'),
+                    enableFilter: true, // Включает поиск по мере ввода
+                    requestFocusOnTap: true,
+                    inputDecorationTheme: InputDecorationTheme(
+                      filled: true,
+                      fillColor: AppTheme.cardWhite,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: AppTheme.divider),
+                      ),
+                    ),
+                    dropdownMenuEntries: finalGroups.map<DropdownMenuEntry<String>>((group) {
+                      return DropdownMenuEntry<String>(
                         value: group,
-                        child: Text(group),
+                        label: group,
                       );
                     }).toList(),
-                    onChanged: (value) {
+                    onSelected: (value) {
                       if (value != null) {
                         setState(() => _selectedGroup = value);
                       }
                     },
-                  ),
-                ),
+                  );
+                },
               ),
-
               const SizedBox(height: 20),
 
               _SectionTitle('Время занятия'),
@@ -320,42 +299,30 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
                     onTap: () => setState(() => _selectedTimeIndex = i),
                     child: Container(
                       margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       decoration: BoxDecoration(
-                        color: isSelected
-                            ? AppTheme.accentBlue.withValues(alpha: 0.1)
-                            : AppTheme.cardWhite,
+                        color: isSelected ? AppTheme.accentBlue.withValues(alpha: 0.1) : AppTheme.cardWhite,
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
-                          color: isSelected
-                              ? AppTheme.accentBlue
-                              : AppTheme.divider,
+                          color: isSelected ? AppTheme.accentBlue : AppTheme.divider,
                           width: isSelected ? 2 : 1,
                         ),
                       ),
                       child: Row(
                         children: [
                           Icon(
-                            isSelected
-                                ? Icons.radio_button_checked
-                                : Icons.radio_button_off,
-                            color: isSelected
-                                ? AppTheme.accentBlue
-                                : AppTheme.textMuted,
+                            isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
+                            color: isSelected ? AppTheme.accentBlue : AppTheme.textMuted,
                             size: 22,
                           ),
                           const SizedBox(width: 12),
-                          const Icon(Icons.access_time,
-                              size: 18, color: AppTheme.textMuted),
+                          const Icon(Icons.access_time, size: 18, color: AppTheme.textMuted),
                           const SizedBox(width: 8),
                           Text(
                             _timeSlots[i],
                             style: TextStyle(
                               color: AppTheme.textDark,
-                              fontWeight: isSelected
-                                  ? FontWeight.w600
-                                  : FontWeight.w400,
+                              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                               fontSize: 14,
                             ),
                           ),
@@ -365,7 +332,6 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
                   );
                 }),
               ),
-
               const SizedBox(height: 20),
 
               _SectionTitle('Название предмета'),
@@ -380,13 +346,10 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
                   fillColor: AppTheme.cardWhite,
                 ),
                 validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Введите название';
-                  }
+                  if (value == null || value.isEmpty) return 'Введите название';
                   return null;
                 },
               ),
-
               const SizedBox(height: 16),
 
               _SectionTitle('Преподаватель'),
@@ -401,13 +364,10 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
                   fillColor: AppTheme.cardWhite,
                 ),
                 validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Введите преподавателя';
-                  }
+                  if (value == null || value.isEmpty) return 'Введите преподавателя';
                   return null;
                 },
               ),
-
               const SizedBox(height: 16),
 
               _SectionTitle('Аудитория'),
@@ -422,48 +382,32 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
                   fillColor: AppTheme.cardWhite,
                 ),
                 validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Введите аудиторию';
-                  }
+                  if (value == null || value.isEmpty) return 'Введите аудиторию';
                   return null;
                 },
               ),
-
               const SizedBox(height: 16),
 
               _SectionTitle('Тип занятия'),
               const SizedBox(height: 8),
               Wrap(
-                spacing: 8,
-                runSpacing: 8,
+                spacing: 8, runSpacing: 8,
                 children: _types.map((type) {
                   final isSelected = _selectedType == type['value'];
                   return GestureDetector(
-                    onTap: () =>
-                        setState(() => _selectedType = type['value']!),
+                    onTap: () => setState(() => _selectedType = type['value']!),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 10),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                       decoration: BoxDecoration(
-                        color: isSelected
-                            ? AppTheme.accentBlue
-                            : AppTheme.cardWhite,
+                        color: isSelected ? AppTheme.accentBlue : AppTheme.cardWhite,
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: isSelected
-                              ? AppTheme.accentBlue
-                              : AppTheme.divider,
-                        ),
+                        border: Border.all(color: isSelected ? AppTheme.accentBlue : AppTheme.divider),
                       ),
                       child: Text(
                         type['label']!,
                         style: TextStyle(
-                          color: isSelected
-                              ? Colors.white
-                              : AppTheme.textDark,
-                          fontWeight: isSelected
-                              ? FontWeight.w600
-                              : FontWeight.w400,
+                          color: isSelected ? Colors.white : AppTheme.textDark,
+                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                           fontSize: 13,
                         ),
                       ),
@@ -471,39 +415,27 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
                   );
                 }).toList(),
               ),
-
               const SizedBox(height: 32),
-
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
                   onPressed: _isLoading ? null : _saveSchedule,
                   icon: _isLoading
-                      ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white),
-                  )
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                       : Icon(widget.isEditing ? Icons.save : Icons.add),
                   label: Text(
                     _isLoading
                         ? 'Сохранение...'
-                        : (widget.isEditing
-                        ? 'Сохранить изменения'
-                        : 'Добавить занятие'),
+                        : (widget.isEditing ? 'Сохранить изменения' : 'Добавить занятие'),
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.primaryNavy,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
               ),
-
               const SizedBox(height: 16),
             ],
           ),

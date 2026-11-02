@@ -5,31 +5,25 @@ import 'admin_schedule_screen.dart';
 import 'admin_events_screen.dart';
 import 'admin_users_screen.dart';
 import 'add_news_screen.dart';
+import 'support_screen.dart';
+import 'admin_groups_screen.dart';
+import 'admin_export_screen.dart';
+import 'admin_departments_screen.dart';
+import 'admin_calendar_import_screen.dart'; // ✅ Импорт экрана импорта КУГ
 
 class AdminHomeScreen extends StatelessWidget {
   const AdminHomeScreen({super.key});
 
-  static const List<AdminCardItem> _cards = [
-    AdminCardItem(
-      icon: Icons.calendar_month,
-      label: 'Управление расписанием',
-      color: Color(0xFF3D6FA3),
-    ),
-    AdminCardItem(
-      icon: Icons.event_available,
-      label: 'Управление мероприятиями',
-      color: Color(0xFF2E7D52),
-    ),
-    AdminCardItem(
-      icon: Icons.people,
-      label: 'Список студентов',
-      color: Color(0xFF8A5A00),
-    ),
-    AdminCardItem(
-      icon: Icons.campaign,
-      label: 'Добавить новость',
-      color: Color(0xFFB8922A),
-    ),
+  static const List<_AdminCardItem> _cards = [
+    _AdminCardItem(icon: Icons.calendar_month, label: 'Расписание', subtitle: 'Управление занятиями', color: Color(0xFF3D6FA3)),
+    _AdminCardItem(icon: Icons.group_add, label: 'Группы', subtitle: 'Список всех групп', color: Color(0xFF7E3FBF)),
+    _AdminCardItem(icon: Icons.event_available, label: 'Мероприятия', subtitle: 'Создание и отметки', color: Color(0xFF2E7D52)),
+    _AdminCardItem(icon: Icons.people, label: 'Студенты', subtitle: 'Роли и баллы', color: Color(0xFF8A5A00)),
+    _AdminCardItem(icon: Icons.campaign, label: 'Новости', subtitle: 'Публикация', color: Color(0xFFB8922A)),
+    _AdminCardItem(icon: Icons.file_download_outlined, label: 'Экспорт в Excel', subtitle: 'Выгрузка данных студентов', color: Colors.teal),
+    _AdminCardItem(icon: Icons.apartment, label: 'Подразделения', subtitle: 'Институты и колледжи', color: Colors.indigo),
+    _AdminCardItem(icon: Icons.calendar_today, label: 'Учебный план', subtitle: 'Импорт КУГ из Excel', color: Colors.deepPurple), // ✅ НОВЫЙ ПУНКТ
+    _AdminCardItem(icon: Icons.support_agent, label: 'Техподдержка', subtitle: 'Обращения студентов', color: Color(0xFFFF6B35)),
   ];
 
   @override
@@ -37,31 +31,22 @@ class AdminHomeScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Панель администратора'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, size: 18),
+          onPressed: () => Navigator.pop(context),
+        ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () => _showLogoutDialog(context),
-          ),
+          IconButton(icon: const Icon(Icons.logout), onPressed: () => _showLogoutDialog(context)),
         ],
       ),
       backgroundColor: AppTheme.backgroundGray,
-      body: GridView.builder(
-        padding: const EdgeInsets.all(20),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          mainAxisSpacing: 15,
-          crossAxisSpacing: 15,
-          childAspectRatio: 1.1,
-        ),
+      body: ListView.separated(
+        padding: const EdgeInsets.all(AppTheme.s16),
         itemCount: _cards.length,
-        itemBuilder: (context, index) {
-          final item = _cards[index];
-          return _AdminCard(
-            icon: item.icon,
-            label: item.label,
-            color: item.color,
-            onTap: () => _handleTap(context, item.label),
-          );
+        separatorBuilder: (_, __) => const SizedBox(height: AppTheme.s12),
+        itemBuilder: (context, i) {
+          final item = _cards[i];
+          return _AdminTile(item: item, onTap: () => _handleTap(context, item.label));
         },
       ),
     );
@@ -70,32 +55,18 @@ class AdminHomeScreen extends StatelessWidget {
   void _handleTap(BuildContext context, String label) {
     Widget? screen;
     switch (label) {
-      case 'Управление расписанием':
-        screen = const AdminScheduleScreen();
-        break;
-      case 'Управление мероприятиями':
-        screen = const AdminEventsScreen();
-        break;
-      case 'Список студентов':
-        screen = const AdminUsersScreen();
-        break;
-      case 'Добавить новость':
-        screen = const AddNewsScreen();
-        break;
+      case 'Расписание': screen = const AdminScheduleScreen(); break;
+      case 'Группы': screen = const AdminGroupsScreen(); break;
+      case 'Мероприятия': screen = const AdminEventsScreen(); break;
+      case 'Студенты': screen = const AdminUsersScreen(); break;
+      case 'Новости': screen = const AddNewsScreen(); break;
+      case 'Подразделения': screen = const AdminDepartmentsScreen(); break;
+      case 'Техподдержка': screen = const SupportScreen(); break;
+      case 'Экспорт в Excel': screen = const AdminExportScreen(); break;
+      case 'Учебный план': screen = const AdminCalendarImportScreen(); break; // ✅
     }
-
     if (screen != null) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => screen!),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Раздел "$label" в разработке'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      Navigator.push(context, MaterialPageRoute(builder: (_) => screen!));
     }
   }
 
@@ -106,14 +77,11 @@ class AdminHomeScreen extends StatelessWidget {
         title: const Text('Выход'),
         content: const Text('Вы уверены, что хотите выйти?'),
         actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')),
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Отмена'),
-          ),
-          TextButton(
-            onPressed: () {
-              FirebaseAuth.instance.signOut();
-              Navigator.pop(context);
+            onPressed: () async {
+              await FirebaseAuth.instance.signOut();
+              if (context.mounted) Navigator.pop(context);
             },
             child: const Text('Выйти', style: TextStyle(color: Colors.red)),
           ),
@@ -123,74 +91,53 @@ class AdminHomeScreen extends StatelessWidget {
   }
 }
 
-class AdminCardItem {
+class _AdminCardItem {
   final IconData icon;
   final String label;
+  final String subtitle;
   final Color color;
-
-  const AdminCardItem({
-    required this.icon,
-    required this.label,
-    required this.color,
-  });
+  const _AdminCardItem({required this.icon, required this.label, required this.subtitle, required this.color});
 }
 
-class _AdminCard extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
+class _AdminTile extends StatelessWidget {
+  final _AdminCardItem item;
   final VoidCallback onTap;
-
-  const _AdminCard({
-    required this.icon,
-    required this.label,
-    required this.color,
-    required this.onTap,
-  });
+  const _AdminTile({required this.item, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(15),
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppTheme.cardWhite,
-          borderRadius: BorderRadius.circular(15),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(14),
+    return Material(
+      color: AppTheme.cardWhite,
+      borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(AppTheme.s16),
+          child: Row(
+            children: [
+              Container(
+                width: 52, height: 52,
+                decoration: BoxDecoration(
+                  color: item.color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                ),
+                child: Icon(item.icon, color: item.color, size: 26),
               ),
-              child: Icon(icon, size: 32, color: color),
-            ),
-            const SizedBox(height: 12),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Text(
-                label,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                  color: AppTheme.textDark,
+              const SizedBox(width: AppTheme.s16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(item.label, style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 2),
+                    Text(item.subtitle, style: Theme.of(context).textTheme.bodySmall),
+                  ],
                 ),
               ),
-            ),
-          ],
+              const Icon(Icons.chevron_right, color: AppTheme.textMuted, size: 20),
+            ],
+          ),
         ),
       ),
     );

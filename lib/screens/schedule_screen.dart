@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/intl.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import '../theme/app_theme.dart';
 import '../models/lesson.dart';
+import '../services/notification_service.dart';
 
 class ScheduleScreen extends StatefulWidget {
   const ScheduleScreen({super.key});
@@ -17,20 +20,20 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   String _userGroup = '';
   bool _isLoading = true;
 
-  static const List<String> _days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
-  static const List<String> _weeks = ['Общая', 'Нечетная', 'Четная'];
+  final DateTime _semesterStart = DateTime(2026, 9, 1);
+  static const List<String> _days = ['ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ'];
 
   @override
   void initState() {
     super.initState();
     _loadUserGroup();
     _detectCurrentWeek();
+    initializeDateFormatting('ru_RU', null);
   }
 
   void _detectCurrentWeek() {
     final now = DateTime.now();
-    final startDate = DateTime(2026, 9, 1);
-    final diff = now.difference(startDate).inDays;
+    final diff = now.difference(_semesterStart).inDays;
     final weekNumber = (diff / 7).floor() + 1;
 
     if (weekNumber % 2 == 0) {
@@ -38,7 +41,6 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     } else {
       _selectedWeek = 1;
     }
-    print('📅 Текущая неделя: ${_weeks[_selectedWeek]} (№$weekNumber)');
   }
 
   Future<void> _loadUserGroup() async {
@@ -56,14 +58,12 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
           .collection('users')
           .doc(user.uid)
           .get();
-
       if (doc.exists) {
         final data = doc.data() as Map<String, dynamic>;
         setState(() {
           _userGroup = (data['group'] as String?)?.trim() ?? 'Б-ПИГМУ-24';
           _isLoading = false;
         });
-        print('✅ Группа загружена: "$_userGroup"');
       } else {
         setState(() {
           _userGroup = 'Б-ПИГМУ-24';
@@ -71,7 +71,6 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         });
       }
     } catch (e) {
-      print('❌ Ошибка загрузки группы: $e');
       setState(() {
         _userGroup = 'Б-ПИГМУ-24';
         _isLoading = false;
@@ -79,400 +78,437 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     }
   }
 
+  List<DateTime> _getDatesForWeek() {
+    final now = DateTime.now();
+    final currentMonday = now.subtract(Duration(days: now.weekday - 1));
+    final targetMonday = _selectedWeek == 2
+        ? currentMonday.add(const Duration(days: 7))
+        : currentMonday;
+
+    return List.generate(6, (index) {
+      return targetMonday.add(Duration(days: index));
+    });
+  }
+
+  String _formatDayHeader(DateTime date) {
+    final formatter = DateFormat('EEEE, d MMMM', 'ru_RU');
+    String formatted = formatter.format(date);
+    return formatted[0].toUpperCase() + formatted.substring(1);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final dates = _getDatesForWeek();
+    final currentMonth = DateFormat('MMMM', 'ru_RU').format(dates.first);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, size: 18),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text('Расписание'),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(100),
-          child: Column(
-            children: [
-              Container(
-                padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                color: AppTheme.primaryNavy,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(_weeks.length, (i) {
-                    final isSelected = i == _selectedWeek;
-                    return GestureDetector(
-                      onTap: () => setState(() => _selectedWeek = i),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 6),
-                        margin: const EdgeInsets.symmetric(horizontal: 4),
-                        decoration: BoxDecoration(
-                          color:
-                          isSelected ? Colors.white : Colors.transparent,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color:
-                            isSelected ? Colors.white : Colors.white24,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor, // ✅ Динамический фон
+      body: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.only(top: 50, bottom: 20, left: 16, right: 16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: isDark
+                    ? [Theme.of(context).cardColor, Theme.of(context).cardColor] // В темной теме без градиента
+                    : [const Color(0xFF3D6FA3), AppTheme.primaryNavy],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+              borderRadius: const BorderRadius.only(
+                bottomLeft: Radius.circular(24),
+                bottomRight: Radius.circular(24),
+              ),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    IconButton(
+                      icon: Icon(Icons.arrow_back_ios_new,
+                          color: isDark ? Colors.white : Colors.white, size: 20),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                    Expanded(
+                      child: Column(
+                        children: [
+                          Text(
+                            'Расписание',
+                            style: TextStyle(
+                                color: isDark ? Colors.white : Colors.white,
+                                fontSize: 18, fontWeight: FontWeight.w600),
                           ),
-                        ),
-                        child: Text(
-                          _weeks[i],
-                          style: TextStyle(
-                            color: isSelected
-                                ? AppTheme.primaryNavy
-                                : Colors.white70,
-                            fontWeight: isSelected
-                                ? FontWeight.w700
-                                : FontWeight.w400,
-                            fontSize: 13,
+                          const SizedBox(height: 4),
+                          Text(
+                            'группа $_userGroup',
+                            style: TextStyle(
+                                color: isDark ? Colors.white70 : Colors.white.withValues(alpha: 0.8),
+                                fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 48),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.1)
+                        : Colors.black.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => setState(() => _selectedWeek = 1),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            decoration: BoxDecoration(
+                              color: _selectedWeek != 2
+                                  ? (isDark ? Colors.white : Colors.white)
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(30),
+                            ),
+                            child: Center(
+                              child: Text(
+                                'Эта неделя',
+                                style: TextStyle(
+                                  color: _selectedWeek != 2
+                                      ? (isDark ? AppTheme.primaryNavy : AppTheme.primaryNavy)
+                                      : Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    );
-                  }),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => setState(() => _selectedWeek = 2),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            decoration: BoxDecoration(
+                              color: _selectedWeek == 2
+                                  ? (isDark ? Colors.white : Colors.white)
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(30),
+                            ),
+                            child: Center(
+                              child: Text(
+                                'Следующая',
+                                style: TextStyle(
+                                  color: _selectedWeek == 2
+                                      ? (isDark ? AppTheme.primaryNavy : AppTheme.primaryNavy)
+                                      : Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              _DaySelector(
-                days: _days,
-                selected: _selectedDay,
-                onSelect: (i) => setState(() => _selectedDay = i),
-              ),
-            ],
-          ),
-        ),
-      ),
-      backgroundColor: AppTheme.backgroundGray,
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : StreamBuilder<QuerySnapshot>(
-        // Загружаем только занятия этой группы
-        stream: FirebaseFirestore.instance
-            .collection('lessons')
-            .where('group', isEqualTo: _userGroup)
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (snapshot.hasError) {
-            print('❌ Firestore ошибка: ${snapshot.error}');
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error_outline,
-                      size: 48, color: Colors.red),
-                  const SizedBox(height: 16),
-                  Text('Ошибка: ${snapshot.error}'),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () => setState(() {}),
-                    child: const Text('Повторить'),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          final docs = snapshot.data?.docs ?? [];
-          print('📊 Firestore вернул: ${docs.length} документов группы $_userGroup');
-
-          // ФИЛЬТР ПО ДНЮ И НЕДЕЛЕ В DART
-          final lessons = docs
-              .map((doc) => Lesson.fromMap(
-              doc.id, doc.data() as Map<String, dynamic>))
-              .where((lesson) {
-            final dayMatch = lesson.dayIndex == _selectedDay;
-            final weekMatch = _selectedWeek == 0
-                ? lesson.week == 0
-                : (lesson.week == 0 ||
-                lesson.week == _selectedWeek);
-
-            // Логи для отладки
-            if (dayMatch) {
-              print('  📄 ${lesson.subject} | day=${lesson.dayIndex} | week=${lesson.week} | show=${dayMatch && weekMatch}');
-            }
-
-            return dayMatch && weekMatch;
-          })
-              .toList();
-
-          print('📊 После фильтра (день=$_selectedDay, неделя=$_selectedWeek): ${lessons.length}');
-
-          lessons.sort((a, b) => a.startTime.compareTo(b.startTime));
-
-          if (lessons.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.calendar_today,
-                      size: 48, color: AppTheme.textMuted),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Занятий не найдено',
-                    style: TextStyle(
-                        fontSize: 16, color: AppTheme.textMuted),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Группа: $_userGroup',
-                    style: const TextStyle(
-                        fontSize: 13, color: AppTheme.textMuted),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Неделя: ${_weeks[_selectedWeek]}',
-                    style: const TextStyle(
-                        fontSize: 13, color: AppTheme.textMuted),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: lessons.length,
-            itemBuilder: (context, i) =>
-                _LessonCard(lesson: lessons[i]),
-          );
-        },
-      ),
-    );
-  }
-}
-
-// --- DAY SELECTOR ---
-class _DaySelector extends StatelessWidget {
-  final List<String> days;
-  final int selected;
-  final ValueChanged<int> onSelect;
-
-  const _DaySelector({
-    required this.days,
-    required this.selected,
-    required this.onSelect,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: AppTheme.primaryNavy,
-      padding: const EdgeInsets.only(bottom: 10, top: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: List.generate(days.length, (i) {
-          final isSelected = i == selected;
-          return GestureDetector(
-            onTap: () => onSelect(i),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-              decoration: BoxDecoration(
-                color: isSelected ? Colors.white : Colors.transparent,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                days[i],
-                style: TextStyle(
-                  color: isSelected ? AppTheme.primaryNavy : Colors.white60,
-                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
-                  fontSize: 13,
+                const SizedBox(height: 12),
+                Text(
+                  '${dates.first.day}–${dates.last.day} $currentMonth · ${_selectedWeek == 1 ? "нечетная неделя" : "четная неделя"}',
+                  style: TextStyle(
+                      color: isDark ? Colors.white70 : Colors.white.withValues(alpha: 0.8),
+                      fontSize: 12, fontWeight: FontWeight.w500),
                 ),
-              ),
+              ],
             ),
-          );
-        }),
+          ),
+          Container(
+            color: Theme.of(context).cardColor, // ✅ Динамический фон для полосы дней
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: List.generate(_days.length, (i) {
+                final isSelected = i == _selectedDay;
+                return GestureDetector(
+                  onTap: () => setState(() => _selectedDay = i),
+                  child: Container(
+                    width: 44,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isSelected ? Theme.of(context).colorScheme.primary : Colors.transparent,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      children: [
+                        Text(
+                          _days[i],
+                          style: TextStyle(
+                            color: isSelected ? Colors.white60 : Theme.of(context).textTheme.bodySmall?.color,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          dates[i].day.toString(),
+                          style: TextStyle(
+                            color: isSelected ? Colors.white : Theme.of(context).textTheme.titleMedium?.color,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.start,
+              children: [
+                Text(
+                  _formatDayHeader(dates[_selectedDay]),
+                  style: Theme.of(context).textTheme.titleMedium, // ✅
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('lessons')
+                  .where('group', isEqualTo: _userGroup)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.hasError) {
+                  return Center(child: Text('Ошибка: ${snapshot.error}'));
+                }
+
+                final docs = snapshot.data?.docs ?? [];
+                final lessons = docs.map((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  data['id'] = doc.id;
+                  return Lesson.fromMap(doc.id, data);
+                }).where((lesson) {
+                  final dayMatch = lesson.dayIndex == _selectedDay;
+                  final weekMatch = lesson.week == 0 || lesson.week == _selectedWeek;
+                  return dayMatch && weekMatch;
+                }).toList();
+
+                lessons.sort((a, b) {
+                  String timeA = a.time.split('-')[0].trim();
+                  String timeB = b.time.split('-')[0].trim();
+
+                  int hourA = int.tryParse(timeA.split(':')[0]) ?? 0;
+                  int minA = int.tryParse(timeA.split(':')[1]) ?? 0;
+
+                  int hourB = int.tryParse(timeB.split(':')[0]) ?? 0;
+                  int minB = int.tryParse(timeB.split(':')[1]) ?? 0;
+
+                  if (hourA != hourB) {
+                    return hourA.compareTo(hourB);
+                  }
+                  return minA.compareTo(minB);
+                });
+
+                if (lessons.isNotEmpty) {
+                  NotificationService.scheduleLessonReminders(lessons);
+                }
+
+                if (lessons.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.free_breakfast_outlined,
+                            size: 64,
+                            color: Theme.of(context).textTheme.bodySmall?.color?.withValues(alpha: 0.5)), // ✅
+                        const SizedBox(height: 16),
+                        Text('Пар нет',
+                            style: TextStyle(
+                                fontSize: 18,
+                                color: Theme.of(context).textTheme.bodySmall?.color)), // ✅
+                        const SizedBox(height: 8),
+                        Text('Можно отдохнуть!',
+                            style: TextStyle(
+                                fontSize: 14,
+                                color: Theme.of(context).textTheme.bodySmall?.color)), // ✅
+                      ],
+                    ),
+                  );
+                }
+
+                return ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  itemCount: lessons.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemBuilder: (_, i) => _LessonCard(lesson: lessons[i]),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-// --- LESSON CARD ---
 class _LessonCard extends StatelessWidget {
   final Lesson lesson;
 
   const _LessonCard({required this.lesson});
 
-  String get _typeLabel {
-    switch (lesson.type) {
-      case 'лек':
-      case 'лекц':
-        return 'Лекция';
-      case 'пр':
-      case 'практ':
-        return 'Практика';
-      case 'лаб':
-        return 'Лабораторная';
-      default:
-        return lesson.type;
-    }
-  }
-
   Color get _typeColor {
-    switch (lesson.type) {
-      case 'лек':
-      case 'лекц':
-        return const Color(0xFF3D6FA3);
-      case 'пр':
-      case 'практ':
-        return const Color(0xFF2E7D52);
-      case 'лаб':
-        return const Color(0xFF8A5A00);
-      default:
-        return AppTheme.textMuted;
+    switch (lesson.type.toLowerCase()) {
+      case 'лек': case 'лекц': return const Color(0xFF3D6FA3);
+      case 'пр': case 'практ': return const Color(0xFF2E7D52);
+      case 'лаб': return const Color(0xFF8A5A00);
+      case 'сем': return const Color(0xFF7E3FBF);
+      default: return AppTheme.textMuted;
     }
   }
 
-  String get _weekLabel {
-    switch (lesson.week) {
-      case 0:
-        return 'Общая';
-      case 1:
-        return 'Нечетная';
-      case 2:
-        return 'Четная';
-      default:
-        return '';
+  String get _typeLabel {
+    switch (lesson.type.toLowerCase()) {
+      case 'лек': case 'лекц': return 'Лекция';
+      case 'пр': case 'практ': return 'Практика';
+      case 'лаб': return 'Лабораторная';
+      case 'сем': return 'Семинар';
+      default: return lesson.type;
     }
   }
+
+  List<String> get _times => lesson.time.split('-');
 
   @override
   Widget build(BuildContext context) {
-    final weekColor = lesson.week == 0
-        ? Colors.grey[400]
-        : (lesson.week == 1 ? Colors.blue[300] : Colors.orange[300]);
-
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppTheme.cardWhite,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.divider),
+        color: Theme.of(context).cardColor, // ✅ Динамический цвет карточки
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
+              color: Colors.black.withValues(alpha: Theme.of(context).brightness == Brightness.dark ? 0.2 : 0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 4)
           ),
         ],
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Column(
-            children: [
-              Text(
-                lesson.startTime,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.primaryNavy,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              width: 80,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              decoration: BoxDecoration(
+                color: _typeColor,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  bottomLeft: Radius.circular(16),
                 ),
               ),
-              Text(
-                lesson.endTime,
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: AppTheme.textMuted,
-                ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    _times.isNotEmpty ? _times[0].trim() : '',
+                    style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  Container(width: 20, height: 1, color: Colors.white54),
+                  const SizedBox(height: 4),
+                  Text(
+                    _times.length > 1 ? _times[1].trim() : '',
+                    style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500),
+                  ),
+                ],
               ),
-            ],
-          ),
-          const SizedBox(width: 14),
-          Container(
-            width: 2,
-            height: 56,
-            color: _typeColor.withValues(alpha: 0.3),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        lesson.subject,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.textDark,
-                        ),
-                      ),
-                    ),
-                    if (lesson.week != 0)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: weekColor?.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(
-                            color: weekColor ?? Colors.grey,
-                            width: 0.5,
-                          ),
-                        ),
-                        child: Text(
-                          _weekLabel,
-                          style: TextStyle(
-                            fontSize: 9,
-                            color: weekColor?.withValues(alpha: 0.8),
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    const Icon(Icons.room_outlined,
-                        size: 13, color: AppTheme.textMuted),
-                    const SizedBox(width: 3),
-                    Text(
-                      lesson.room,
-                      style: const TextStyle(
-                          fontSize: 12, color: AppTheme.textMuted),
-                    ),
-                    const SizedBox(width: 10),
-                    const Icon(Icons.person_outline,
-                        size: 13, color: AppTheme.textMuted),
-                    const SizedBox(width: 3),
-                    Expanded(
-                      child: Text(
-                        lesson.teacher,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            fontSize: 12, color: AppTheme.textMuted),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Container(
-                  padding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: _typeColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    _typeLabel,
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: _typeColor,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
             ),
-          ),
-        ],
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: _typeColor.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            _typeLabel,
+                            style: TextStyle(fontSize: 10, color: _typeColor, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        if (lesson.week != 0) ...[
+                          const SizedBox(width: 6),
+                          Text(
+                            lesson.week == 1 ? "нечет." : "чет.",
+                            style: TextStyle(
+                                fontSize: 10,
+                                color: Theme.of(context).textTheme.bodySmall?.color,
+                                fontWeight: FontWeight.bold
+                            ),
+                          )
+                        ]
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      lesson.subject,
+                      style: Theme.of(context).textTheme.titleMedium, // ✅
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Icon(Icons.person_outline, size: 14, color: Theme.of(context).textTheme.bodySmall?.color),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            lesson.teacher,
+                            style: Theme.of(context).textTheme.bodySmall, // ✅
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Icon(Icons.location_on_outlined, size: 14, color: Theme.of(context).textTheme.bodySmall?.color),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Кабинет: ${lesson.room}',
+                          style: Theme.of(context).textTheme.bodySmall, // ✅
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

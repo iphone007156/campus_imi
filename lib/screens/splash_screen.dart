@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../theme/app_theme.dart';
 import 'guest_screen.dart';
 import 'auth_screen.dart';
+import 'about_screen.dart'; // ✅ Импортируем экран "О проекте"
 
-// --- Вспомогательные классы ---
+// ─── Вспомогательные классы ───
 
 class LogoBadge extends StatelessWidget {
   const LogoBadge({super.key});
@@ -84,112 +84,7 @@ class RoleButton extends StatelessWidget {
   }
 }
 
-class AdminLoginDialog extends StatefulWidget {
-  const AdminLoginDialog({super.key});
-
-  @override
-  State<AdminLoginDialog> createState() => _AdminLoginDialogState();
-}
-
-class _AdminLoginDialogState extends State<AdminLoginDialog> {
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-  bool _isLoading = false;
-  String? _errorText;
-
-  @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _login() async {
-    setState(() {
-      _isLoading = true;
-      _errorText = null;
-    });
-
-    try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
-      );
-      if (mounted) Navigator.pop(context);
-    } on FirebaseAuthException catch (e) {
-      setState(() {
-        _errorText = switch (e.code) {
-          'user-not-found' || 'wrong-password' || 'invalid-credential' =>
-          'Неверный email или пароль',
-          'invalid-email' => 'Некорректный email',
-          _ => 'Ошибка входа: ${e.message ?? e.code}',
-        };
-      });
-    } catch (e) {
-      setState(() {
-        _errorText = 'Не удалось выполнить вход';
-      });
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Вход администратора'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: _emailController,
-            enabled: !_isLoading,
-            keyboardType: TextInputType.emailAddress,
-            decoration: const InputDecoration(
-              labelText: 'Email',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _passwordController,
-            enabled: !_isLoading,
-            obscureText: true,
-            decoration: const InputDecoration(
-              labelText: 'Пароль',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          if (_errorText != null) ...[
-            const SizedBox(height: 12),
-            Text(
-              _errorText!,
-              style: const TextStyle(color: Colors.red, fontSize: 13),
-            ),
-          ],
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: _isLoading ? null : () => Navigator.pop(context),
-          child: const Text('Отмена'),
-        ),
-        ElevatedButton(
-          onPressed: _isLoading ? null : _login,
-          child: _isLoading
-              ? const SizedBox(
-            width: 18,
-            height: 18,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          )
-              : const Text('Войти'),
-        ),
-      ],
-    );
-  }
-}
-
-// --- ОСНОВНОЙ ЭКРАН ---
+// ─── ОСНОВНОЙ ЭКРАН ───
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -269,6 +164,8 @@ class _SplashScreenState extends State<SplashScreen>
                       ),
                     ),
                     const Spacer(flex: 3),
+
+                    // Кнопки входа
                     RoleButton(
                       label: 'Студент',
                       icon: Icons.school_outlined,
@@ -290,13 +187,30 @@ class _SplashScreenState extends State<SplashScreen>
                         ),
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    RoleButton(
-                      label: 'Администратор',
-                      icon: Icons.admin_panel_settings_outlined,
-                      onTap: () => _showAdminLoginDialog(context),
-                    ),
+
                     const Spacer(flex: 2),
+
+                    // ✅ НОВАЯ КНОПКА "О ПРОЕКТЕ"
+                    TextButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const AboutScreen()),
+                        );
+                      },
+                      icon: const Icon(Icons.info_outline, color: Colors.white70, size: 18),
+                      label: Text(
+                        'О проекте',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.7),
+                          fontSize: 13,
+                          decoration: TextDecoration.underline,
+                          decorationColor: Colors.white.withValues(alpha: 0.5),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
                     Text(
                       'Северо-Восточный федеральный университет',
                       textAlign: TextAlign.center,
@@ -313,14 +227,6 @@ class _SplashScreenState extends State<SplashScreen>
           ),
         ),
       ),
-    );
-  }
-
-  void _showAdminLoginDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const AdminLoginDialog(),
     );
   }
 }

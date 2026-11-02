@@ -106,6 +106,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final isFinished = widget.event.isFinished;
+    final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -132,13 +133,13 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             ),
         ],
       ),
-      backgroundColor: AppTheme.backgroundGray,
+      backgroundColor: theme.scaffoldBackgroundColor, // ✅ Динамический фон
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ===== ИЗОБРАЖЕНИЕ — оптимизированное =====
+            // ===== ИЗОБРАЖЕНИЕ =====
             if (widget.event.imageUrl.isNotEmpty)
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
@@ -152,11 +153,11 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                     if (loadingProgress == null) return child;
                     return Container(
                       height: 200,
-                      color: AppTheme.lightBlue,
+                      color: theme.cardColor,
                       child: Center(
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: AppTheme.accentBlue,
+                          color: theme.colorScheme.primary,
                           value: loadingProgress.expectedTotalBytes != null
                               ? loadingProgress.cumulativeBytesLoaded /
                               loadingProgress.expectedTotalBytes!
@@ -176,17 +177,17 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   },
                   errorBuilder: (_, __, ___) => Container(
                     height: 200,
-                    color: AppTheme.lightBlue,
-                    child: const Center(
+                    color: theme.cardColor,
+                    child: Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(Icons.image_not_supported,
-                              size: 48, color: AppTheme.textMuted),
-                          SizedBox(height: 8),
+                              size: 48, color: theme.disabledColor),
+                          const SizedBox(height: 8),
                           Text('Не удалось загрузить',
                               style: TextStyle(
-                                  fontSize: 12, color: AppTheme.textMuted)),
+                                  fontSize: 12, color: theme.disabledColor)),
                         ],
                       ),
                     ),
@@ -199,9 +200,9 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: AppTheme.cardWhite,
+                color: theme.cardColor, // ✅ Динамический цвет карточки
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppTheme.divider),
+                border: Border.all(color: theme.dividerColor),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -212,10 +213,10 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                       Expanded(
                         child: Text(
                           widget.event.title,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w700,
-                            color: AppTheme.textDark,
+                            color: theme.textTheme.titleLarge?.color,
                           ),
                         ),
                       ),
@@ -261,13 +262,14 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      const Icon(Icons.group,
-                          size: 16, color: AppTheme.textMuted),
+                      Icon(Icons.group,
+                          size: 16, color: theme.disabledColor),
                       const SizedBox(width: 8),
                       Text(
                         'Записались: ${widget.event.participants.length}',
-                        style: const TextStyle(
-                            fontSize: 14, color: AppTheme.textDark),
+                        style: TextStyle(
+                            fontSize: 14,
+                            color: theme.textTheme.bodyMedium?.color),
                       ),
                     ],
                   ),
@@ -324,27 +326,27 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: AppTheme.cardWhite,
+                color: theme.cardColor,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppTheme.divider),
+                border: Border.all(color: theme.dividerColor),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'О мероприятии',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: AppTheme.textDark,
+                      color: theme.textTheme.titleMedium?.color,
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     widget.event.description,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
-                      color: AppTheme.textDark,
+                      color: theme.textTheme.bodyMedium?.color,
                       height: 1.6,
                     ),
                   ),
@@ -378,8 +380,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   side: BorderSide(
                     color: widget.event.participants.isEmpty
-                        ? AppTheme.textMuted
-                        : AppTheme.accentBlue,
+                        ? theme.disabledColor
+                        : theme.colorScheme.primary,
                   ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -400,7 +402,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: isFinished
                         ? Colors.grey
-                        : (_isParticipant ? Colors.red : AppTheme.primaryNavy),
+                        : (_isParticipant ? Colors.red : theme.colorScheme.primary),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
@@ -474,14 +476,15 @@ class _InfoRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Row(
       children: [
-        Icon(icon, size: 16, color: AppTheme.textMuted),
+        Icon(icon, size: 16, color: theme.disabledColor),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
             text,
-            style: const TextStyle(fontSize: 14, color: AppTheme.textDark),
+            style: TextStyle(fontSize: 14, color: theme.textTheme.bodyMedium?.color),
           ),
         ),
       ],
