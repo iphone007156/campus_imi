@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:convert';
+import 'dart:ui'; // ✅ Для ImageFilter (размытие)
 import '../theme/app_theme.dart';
 import '../models/event_model.dart';
 import '../services/event_service.dart';
+import '../widgets/user_avatar.dart';
 import 'event_participants_screen.dart';
 
 class EventDetailScreen extends StatefulWidget {
@@ -28,8 +31,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   }
 
   Future<void> _checkParticipation() async {
-    final isParticipant =
-    await _eventService.isUserParticipant(widget.event.id);
+    final isParticipant = await _eventService.isUserParticipant(widget.event.id);
     if (mounted) {
       setState(() {
         _isParticipant = isParticipant;
@@ -76,9 +78,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(
-                '✅ Вы записались! Баллы (+${widget.event.points}) начислятся после посещения 🎉',
-              ),
+              content: Text('✅ Вы записались! Баллы (+${widget.event.points}) начислятся после посещения 🎉'),
               backgroundColor: Colors.green,
               behavior: SnackBarBehavior.floating,
               duration: const Duration(seconds: 3),
@@ -103,10 +103,53 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     }
   }
 
+  void _openFullImage(BuildContext context, ImageProvider imageProvider) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: EdgeInsets.zero,
+        child: Stack(
+          children: [
+            InteractiveViewer(
+              panEnabled: true,
+              boundaryMargin: const EdgeInsets.all(20),
+              minScale: 0.5,
+              maxScale: 4,
+              child: Center(child: Image(image: imageProvider)),
+            ),
+            Positioned(
+              top: 40,
+              right: 20,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white, size: 30),
+                onPressed: () => Navigator.pop(context),
+                style: IconButton.styleFrom(backgroundColor: Colors.black54),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildImageWidget(ImageProvider imageProvider, {BoxFit fit = BoxFit.cover}) {
+    return Image(image: imageProvider, fit: fit, filterQuality: FilterQuality.high);
+  }
+
   @override
   Widget build(BuildContext context) {
     final isFinished = widget.event.isFinished;
     final theme = Theme.of(context);
+
+    ImageProvider? eventImage;
+    if (widget.event.imageUrl.isNotEmpty) {
+      eventImage = NetworkImage(widget.event.imageUrl);
+    } else if (widget.event.imageBase64.isNotEmpty) {
+      try {
+        eventImage = MemoryImage(base64Decode(widget.event.imageBase64));
+      } catch (_) {}
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -124,8 +167,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                     children: [
                       Icon(Icons.delete, color: Colors.red, size: 20),
                       SizedBox(width: 8),
-                      Text('Удалить мероприятие',
-                          style: TextStyle(color: Colors.red)),
+                      Text('Удалить мероприятие', style: TextStyle(color: Colors.red)),
                     ],
                   ),
                 ),
@@ -133,294 +175,217 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             ),
         ],
       ),
-      backgroundColor: theme.scaffoldBackgroundColor, // ✅ Динамический фон
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ===== ИЗОБРАЖЕНИЕ =====
-            if (widget.event.imageUrl.isNotEmpty)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Image.network(
-                  widget.event.imageUrl,
-                  height: 200,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  cacheWidth: 800,
-                  loadingBuilder: (context, child, loadingProgress) {
-                    if (loadingProgress == null) return child;
-                    return Container(
-                      height: 200,
-                      color: theme.cardColor,
-                      child: Center(
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: theme.colorScheme.primary,
-                          value: loadingProgress.expectedTotalBytes != null
-                              ? loadingProgress.cumulativeBytesLoaded /
-                              loadingProgress.expectedTotalBytes!
-                              : null,
+            // ===== БЛОК С КАРТИНКОЙ (КАК В НОВОСТЯХ) =====
+            if (eventImage != null)
+              GestureDetector(
+                onTap: () => _openFullImage(context, eventImage!),
+                child: SizedBox(
+                  height: 300,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      // 1. Размытый фон
+                      ImageFiltered(
+                        imageFilter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                        child: _buildImageWidget(eventImage, fit: BoxFit.cover),
+                      ),
+                      // 2. Затемнение
+                      Container(color: Colors.black.withValues(alpha: 0.4)),
+                      // 3. Четкая картинка по центру
+                      Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: _buildImageWidget(eventImage, fit: BoxFit.contain),
                         ),
                       ),
-                    );
-                  },
-                  frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-                    if (wasSynchronouslyLoaded) return child;
-                    return AnimatedOpacity(
-                      opacity: frame == null ? 0 : 1,
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeOut,
-                      child: child,
-                    );
-                  },
-                  errorBuilder: (_, __, ___) => Container(
-                    height: 200,
-                    color: theme.cardColor,
-                    child: Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.image_not_supported,
-                              size: 48, color: theme.disabledColor),
-                          const SizedBox(height: 8),
-                          Text('Не удалось загрузить',
-                              style: TextStyle(
-                                  fontSize: 12, color: theme.disabledColor)),
-                        ],
-                      ),
-                    ),
+                    ],
                   ),
                 ),
               ),
             const SizedBox(height: 16),
 
             // ===== ОСНОВНАЯ ИНФОРМАЦИЯ =====
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: theme.cardColor, // ✅ Динамический цвет карточки
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: theme.dividerColor),
-              ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          widget.event.title,
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w700,
-                            color: theme.textTheme.titleLarge?.color,
-                          ),
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: AppTheme.gold.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppTheme.gold),
-                        ),
-                        child: Row(
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: theme.cardColor,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: theme.dividerColor),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Icon(Icons.star,
-                                color: AppTheme.gold, size: 18),
-                            const SizedBox(width: 4),
-                            Text(
-                              '+${widget.event.points}',
-                              style: const TextStyle(
-                                color: AppTheme.gold,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
+                            Expanded(
+                              child: Text(
+                                widget.event.title,
+                                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: theme.textTheme.titleLarge?.color),
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: AppTheme.gold.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: AppTheme.gold),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.star, color: AppTheme.gold, size: 18),
+                                  const SizedBox(width: 4),
+                                  Text('+${widget.event.points}', style: const TextStyle(color: AppTheme.gold, fontSize: 16, fontWeight: FontWeight.w700)),
+                                ],
                               ),
                             ),
                           ],
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  _InfoRow(
-                      icon: Icons.calendar_today, text: widget.event.date),
-                  const SizedBox(height: 8),
-                  _InfoRow(icon: Icons.access_time, text: widget.event.time),
-                  const SizedBox(height: 8),
-                  _InfoRow(
-                      icon: Icons.location_on, text: widget.event.location),
-                  const SizedBox(height: 8),
-                  _InfoRow(
-                    icon: Icons.person,
-                    text: 'Организатор: ${widget.event.organizer}',
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(Icons.group,
-                          size: 16, color: theme.disabledColor),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Записались: ${widget.event.participants.length}',
-                        style: TextStyle(
-                            fontSize: 14,
-                            color: theme.textTheme.bodyMedium?.color),
-                      ),
-                    ],
-                  ),
-                  if (widget.event.attended.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        const Icon(Icons.check_circle,
-                            size: 16, color: Colors.green),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Пришли: ${widget.event.attended.length}',
-                          style: const TextStyle(
-                              fontSize: 14, color: Colors.green),
-                        ),
-                      ],
-                    ),
-                  ],
-                  if (isFinished) ...[
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: Colors.green.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                            color: Colors.green.withValues(alpha: 0.3)),
-                      ),
-                      child: const Row(
-                        children: [
-                          Icon(Icons.check_circle,
-                              color: Colors.green, size: 20),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Мероприятие завершено',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.green,
-                                fontWeight: FontWeight.w600,
+                        const SizedBox(height: 16),
+                        _InfoRow(icon: Icons.calendar_today, text: widget.event.date),
+                        const SizedBox(height: 8),
+                        _InfoRow(icon: Icons.access_time, text: widget.event.time),
+                        const SizedBox(height: 8),
+                        _InfoRow(icon: Icons.location_on, text: widget.event.location),
+
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            UserAvatar(userId: widget.event.organizerId, size: 40),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Организатор', style: TextStyle(fontSize: 12, color: theme.disabledColor)),
+                                  Text(widget.event.organizer, style: theme.textTheme.titleMedium),
+                                ],
                               ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Icon(Icons.group, size: 16, color: theme.disabledColor),
+                            const SizedBox(width: 8),
+                            Text('Записались: ${widget.event.participants.length}', style: TextStyle(fontSize: 14, color: theme.textTheme.bodyMedium?.color)),
+                          ],
+                        ),
+                        if (widget.event.attended.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              const Icon(Icons.check_circle, size: 16, color: Colors.green),
+                              const SizedBox(width: 8),
+                              Text('Пришли: ${widget.event.attended.length}', style: const TextStyle(fontSize: 14, color: Colors.green)),
+                            ],
+                          ),
+                        ],
+                        if (isFinished) ...[
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.check_circle, color: Colors.green, size: 20),
+                                SizedBox(width: 8),
+                                Expanded(child: Text('Мероприятие завершено', style: TextStyle(fontSize: 13, color: Colors.green, fontWeight: FontWeight.w600))),
+                              ],
                             ),
                           ),
                         ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // ===== ОПИСАНИЕ =====
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: theme.cardColor,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: theme.dividerColor),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('О мероприятии', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: theme.textTheme.titleMedium?.color)),
+                        const SizedBox(height: 8),
+                        Text(widget.event.description, style: TextStyle(fontSize: 14, color: theme.textTheme.bodyMedium?.color, height: 1.6)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // ===== УЧАСТНИКИ =====
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: widget.event.participants.isEmpty
+                          ? null
+                          : () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => EventParticipantsScreen(event: widget.event)),
+                        );
+                      },
+                      icon: const Icon(Icons.people_outline),
+                      label: Text(
+                        widget.event.participants.isEmpty
+                            ? 'Нет участников'
+                            : 'Посмотреть участников (${widget.event.participants.length})',
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        side: BorderSide(color: widget.event.participants.isEmpty ? theme.disabledColor : theme.colorScheme.primary),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                     ),
-                  ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  // ===== КНОПКА ЗАПИСИ =====
+                  if (!_isAdmin)
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: (isFinished || _isLoading) ? null : _toggleParticipation,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: isFinished ? Colors.grey : (_isParticipant ? Colors.red : theme.colorScheme.primary),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: _isLoading
+                            ? const CircularProgressIndicator(color: Colors.white)
+                            : Text(
+                          isFinished ? 'Мероприятие завершено' : (_isParticipant ? 'Отписаться' : 'Записаться на мероприятие'),
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 24),
                 ],
               ),
             ),
-            const SizedBox(height: 16),
-
-            // ===== ОПИСАНИЕ =====
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: theme.cardColor,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: theme.dividerColor),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'О мероприятии',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: theme.textTheme.titleMedium?.color,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    widget.event.description,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: theme.textTheme.bodyMedium?.color,
-                      height: 1.6,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // ===== УЧАСТНИКИ =====
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: widget.event.participants.isEmpty
-                    ? null
-                    : () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => EventParticipantsScreen(
-                          event: widget.event),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.people_outline),
-                label: Text(
-                  widget.event.participants.isEmpty
-                      ? 'Нет участников'
-                      : 'Посмотреть участников (${widget.event.participants.length})',
-                ),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  side: BorderSide(
-                    color: widget.event.participants.isEmpty
-                        ? theme.disabledColor
-                        : theme.colorScheme.primary,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // ===== КНОПКА ЗАПИСИ =====
-            if (!_isAdmin)
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: (isFinished || _isLoading)
-                      ? null
-                      : _toggleParticipation,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: isFinished
-                        ? Colors.grey
-                        : (_isParticipant ? Colors.red : theme.colorScheme.primary),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : Text(
-                    isFinished
-                        ? 'Мероприятие завершено'
-                        : (_isParticipant
-                        ? 'Отписаться'
-                        : 'Записаться на мероприятие'),
-                    style: const TextStyle(fontSize: 16),
-                  ),
-                ),
-              ),
           ],
         ),
       ),
@@ -432,13 +397,9 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Удалить мероприятие'),
-        content: const Text(
-            'Вы уверены, что хотите удалить это мероприятие?'),
+        content: const Text('Вы уверены, что хотите удалить это мероприятие?'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Отмена'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')),
           TextButton(
             onPressed: () async {
               try {
@@ -450,12 +411,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
               } catch (e) {
                 if (mounted) {
                   Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Ошибка: $e'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка: $e'), backgroundColor: Colors.red));
                 }
               }
             },
@@ -481,12 +437,7 @@ class _InfoRow extends StatelessWidget {
       children: [
         Icon(icon, size: 16, color: theme.disabledColor),
         const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            text,
-            style: TextStyle(fontSize: 14, color: theme.textTheme.bodyMedium?.color),
-          ),
-        ),
+        Expanded(child: Text(text, style: TextStyle(fontSize: 14, color: theme.textTheme.bodyMedium?.color))),
       ],
     );
   }

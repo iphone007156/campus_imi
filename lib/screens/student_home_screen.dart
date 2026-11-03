@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'dart:convert';
 import 'dart:async';
 import '../theme/app_theme.dart';
 import '../l10n/app_strings.dart';
 import '../services/settings_service.dart';
+import '../widgets/user_avatar.dart';
 import 'news_screen.dart';
 import 'schedule_screen.dart';
 import 'gradebook_screen.dart';
@@ -15,20 +15,6 @@ import 'indoor_map_screen.dart';
 import 'support_screen.dart';
 import 'tasks_screen.dart';
 import 'settings_screen.dart';
-
-ImageProvider? getImageProvider(Map<String, dynamic> data) {
-  final photoUrl = data['photoUrl'] as String?;
-  if (photoUrl != null && photoUrl.isNotEmpty) {
-    return NetworkImage(photoUrl);
-  }
-  final base64String = data['photoBase64'] as String?;
-  if (base64String == null || base64String.isEmpty) return null;
-  try {
-    return MemoryImage(base64Decode(base64String));
-  } catch (_) {
-    return null;
-  }
-}
 
 class MenuItem {
   final IconData icon;
@@ -49,13 +35,11 @@ class _MenuTile extends StatelessWidget {
       borderRadius: BorderRadius.circular(AppTheme.radiusMd),
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-            horizontal: AppTheme.s16, vertical: AppTheme.s12),
+        padding: const EdgeInsets.symmetric(horizontal: AppTheme.s16, vertical: AppTheme.s12),
         child: Row(
           children: [
             Container(
-              width: 44,
-              height: 44,
+              width: 44, height: 44,
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(AppTheme.radiusSm),
@@ -67,16 +51,13 @@ class _MenuTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(item.label,
-                      style: Theme.of(context).textTheme.titleMedium),
+                  Text(item.label, style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(height: 2),
-                  Text(item.subtitle,
-                      style: Theme.of(context).textTheme.bodySmall),
+                  Text(item.subtitle, style: Theme.of(context).textTheme.bodySmall),
                 ],
               ),
             ),
-            Icon(Icons.chevron_right,
-                color: Theme.of(context).textTheme.bodySmall?.color, size: 20),
+            Icon(Icons.chevron_right, color: Theme.of(context).textTheme.bodySmall?.color, size: 20),
           ],
         ),
       ),
@@ -96,37 +77,31 @@ class _SupportCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(AppTheme.radiusMd),
       child: InkWell(
         borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-        onTap: () => Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const SupportScreen())),
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SupportScreen())),
         child: Padding(
           padding: const EdgeInsets.all(AppTheme.s16),
           child: Row(
             children: [
               Container(
-                width: 44,
-                height: 44,
+                width: 44, height: 44,
                 decoration: BoxDecoration(
                   color: AppTheme.accent.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(AppTheme.radiusSm),
                 ),
-                child: const Icon(Icons.support_agent,
-                    color: AppTheme.accent, size: 24),
+                child: const Icon(Icons.support_agent, color: AppTheme.accent, size: 24),
               ),
               const SizedBox(width: AppTheme.s12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(t('support'),
-                        style: Theme.of(context).textTheme.titleMedium),
+                    Text(t('support'), style: Theme.of(context).textTheme.titleMedium),
                     const SizedBox(height: 2),
-                    Text(t('support_sub'),
-                        style: Theme.of(context).textTheme.bodySmall),
+                    Text(t('support_sub'), style: Theme.of(context).textTheme.bodySmall),
                   ],
                 ),
               ),
-              Icon(Icons.chevron_right,
-                  color: Theme.of(context).textTheme.bodySmall?.color, size: 20),
+              Icon(Icons.chevron_right, color: Theme.of(context).textTheme.bodySmall?.color, size: 20),
             ],
           ),
         ),
@@ -145,7 +120,6 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
   String _userName = 'Студент';
   String _userGroup = 'Группа';
   String _userInstitute = 'ИМИ СВФУ';
-  ImageProvider? _userPhoto;
   bool _isLoading = true;
   StreamSubscription<DocumentSnapshot>? _userSub;
 
@@ -161,11 +135,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
       setState(() => _isLoading = false);
       return;
     }
-    _userSub = FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .snapshots()
-        .listen((snapshot) {
+    _userSub = FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots().listen((snapshot) {
       if (!mounted) return;
       if (snapshot.exists) {
         final data = snapshot.data() as Map<String, dynamic>;
@@ -173,7 +143,6 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
           _userName = data['name'] ?? 'Студент';
           _userGroup = data['group'] ?? 'Группа';
           _userInstitute = data['institute'] ?? 'ИМИ СВФУ';
-          _userPhoto = getImageProvider(data);
           _isLoading = false;
         });
       } else {
@@ -192,7 +161,6 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ Слушаем изменения языка, чтобы меню перестраивалось
     return ListenableBuilder(
       listenable: SettingsService.instance,
       builder: (context, _) {
@@ -220,29 +188,23 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                 automaticallyImplyLeading: false,
                 flexibleSpace: FlexibleSpaceBar(
                   centerTitle: false,
-                  titlePadding: const EdgeInsets.only(
-                      left: AppTheme.s16, bottom: AppTheme.s16),
+                  titlePadding: const EdgeInsets.only(left: AppTheme.s16, bottom: AppTheme.s16),
                   background: _ProfileHeader(
                     userName: _userName,
                     userGroup: _userGroup,
                     userInstitute: _userInstitute,
-                    photoProvider: _userPhoto,
+                    userId: FirebaseAuth.instance.currentUser?.uid, // ✅ Передаем ID
                     isLoading: _isLoading,
                   ),
                 ),
                 actions: [
                   IconButton(
-                    icon: const Icon(Icons.settings_outlined,
-                        color: Colors.white70, size: 20),
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const SettingsScreen()),
-                    ),
+                    icon: const Icon(Icons.settings_outlined, color: Colors.white70, size: 20),
+                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
                     tooltip: 'Настройки',
                   ),
                   IconButton(
-                    icon: const Icon(Icons.logout,
-                        color: Colors.white70, size: 20),
+                    icon: const Icon(Icons.logout, color: Colors.white70, size: 20),
                     onPressed: () => _showLogoutDialog(context),
                     tooltip: 'Выйти',
                   ),
@@ -250,11 +212,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                 ],
               ),
               SliverPadding(
-                padding: const EdgeInsets.fromLTRB(
-                    AppTheme.s16, AppTheme.s20, AppTheme.s16, AppTheme.s8),
-                sliver: SliverToBoxAdapter(
-                    child: Text(t('services'),
-                        style: Theme.of(context).textTheme.labelSmall)),
+                padding: const EdgeInsets.fromLTRB(AppTheme.s16, AppTheme.s20, AppTheme.s16, AppTheme.s8),
+                sliver: SliverToBoxAdapter(child: Text(t('services'), style: Theme.of(context).textTheme.labelSmall)),
               ),
               SliverPadding(
                 padding: const EdgeInsets.symmetric(horizontal: AppTheme.s16),
@@ -268,13 +227,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                     child: Column(
                       children: [
                         for (int i = 0; i < menuItems.length; i++) ...[
-                          _MenuTile(
-                            item: menuItems[i],
-                            onTap: () =>
-                                _onMenuTap(context, menuItems[i].route),
-                          ),
-                          if (i < menuItems.length - 1)
-                            const Divider(indent: 72, endIndent: 16),
+                          _MenuTile(item: menuItems[i], onTap: () => _onMenuTap(context, menuItems[i].route)),
+                          if (i < menuItems.length - 1) const Divider(indent: 72, endIndent: 16),
                         ],
                       ],
                     ),
@@ -296,27 +250,13 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
   void _onMenuTap(BuildContext context, String route) {
     Widget? screen;
     switch (route) {
-      case 'news':
-        screen = const NewsScreen();
-        break;
-      case 'tasks':
-        screen = const TasksEntry();
-        break;
-      case 'schedule':
-        screen = const ScheduleScreen();
-        break;
-      case 'map':
-        screen = const IndoorMapScreen();
-        break;
-      case 'gradebook':
-        screen = const GradebookScreen();
-        break;
-      case 'profile':
-        screen = const ProfileScreen();
-        break;
-      case 'union':
-        screen = const UnionHomeScreen();
-        break;
+      case 'news': screen = const NewsScreen(); break;
+      case 'tasks': screen = const TasksEntry(); break;
+      case 'schedule': screen = const ScheduleScreen(); break;
+      case 'map': screen = const IndoorMapScreen(); break;
+      case 'gradebook': screen = const GradebookScreen(); break;
+      case 'profile': screen = const ProfileScreen(); break;
+      case 'union': screen = const UnionHomeScreen(); break;
     }
     if (screen != null) {
       Navigator.push(context, MaterialPageRoute(builder: (_) => screen!));
@@ -330,9 +270,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
         title: const Text('Выход'),
         content: const Text('Вы уверены, что хотите выйти из учетной записи?'),
         actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Отмена')),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')),
           TextButton(
             onPressed: () async {
               await FirebaseAuth.instance.signOut();
@@ -350,51 +288,30 @@ class _ProfileHeader extends StatelessWidget {
   final String userName;
   final String userGroup;
   final String userInstitute;
-  final ImageProvider? photoProvider;
+  final String? userId; // ✅
   final bool isLoading;
 
   const _ProfileHeader({
     required this.userName,
     required this.userGroup,
     required this.userInstitute,
-    this.photoProvider,
+    this.userId,
     this.isLoading = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(
-          AppTheme.s20, 100, AppTheme.s20, AppTheme.s20),
-      decoration: BoxDecoration(
-        color: Theme.of(context).appBarTheme.backgroundColor,
-      ),
+      padding: const EdgeInsets.fromLTRB(AppTheme.s20, 100, AppTheme.s20, AppTheme.s20),
+      decoration: BoxDecoration(color: Theme.of(context).appBarTheme.backgroundColor),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.white.withValues(alpha: 0.15),
-              border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.4), width: 2),
-              image: photoProvider != null
-                  ? DecorationImage(
-                  image: photoProvider!, fit: BoxFit.cover)
-                  : null,
-            ),
-            child: isLoading
-                ? const Center(
-                child: SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white)))
-                : (photoProvider == null
-                ? const Icon(Icons.person, color: Colors.white, size: 32)
-                : null),
+          UserAvatar(
+            userId: userId, // ✅
+            size: 64,
+            backgroundColor: Colors.white.withValues(alpha: 0.15),
+            icon: Icons.person,
           ),
           const SizedBox(width: AppTheme.s16),
           Expanded(
@@ -404,26 +321,17 @@ class _ProfileHeader extends StatelessWidget {
               children: [
                 Text(
                   isLoading ? 'Загрузка...' : userName,
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 19,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.2),
+                  style: const TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.w700, letterSpacing: -0.2),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   isLoading ? '...' : userGroup,
-                  style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.85),
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500),
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 13, fontWeight: FontWeight.w500),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   isLoading ? '' : userInstitute,
-                  style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.6),
-                      fontSize: 12),
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 12),
                 ),
               ],
             ),
