@@ -16,78 +16,104 @@ class ScheduleScreen extends StatefulWidget {
 
 class _ScheduleScreenState extends State<ScheduleScreen> {
   int _selectedDay = 0;
-  int _selectedWeek = 0;
+  int _selectedWeek = 0; // 0 = текущая, 1 = следующая
   String _userGroup = '';
   bool _isLoading = true;
 
-  final DateTime _semesterStart = DateTime(2026, 9, 1);
+  // Список нечетных недель (загружается из Firebase)
+  List<DateTime> _oddWeeks = [];
+
   static const List<String> _days = ['ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ'];
 
   @override
   void initState() {
     super.initState();
-    _loadUserGroup();
-    _detectCurrentWeek();
     initializeDateFormatting('ru_RU', null);
+    _loadData();
   }
 
-  void _detectCurrentWeek() {
-    final now = DateTime.now();
-    final diff = now.difference(_semesterStart).inDays;
-    final weekNumber = (diff / 7).floor() + 1;
-
-    if (weekNumber % 2 == 0) {
-      _selectedWeek = 2;
-    } else {
-      _selectedWeek = 1;
-    }
+  Future<void> _loadData() async {
+    await _loadUserGroup();
+    await _loadCalendar();
+    if (mounted) setState(() => _isLoading = false);
   }
 
   Future<void> _loadUserGroup() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      setState(() {
-        _userGroup = 'Б-ПИГМУ-24';
-        _isLoading = false;
-      });
+      _userGroup = 'Б-ПИГМУ-24';
       return;
     }
-
     try {
       final doc = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .get();
       if (doc.exists) {
-        final data = doc.data() as Map<String, dynamic>;
-        setState(() {
-          _userGroup = (data['group'] as String?)?.trim() ?? 'Б-ПИГМУ-24';
-          _isLoading = false;
-        });
+        _userGroup = (doc.data()?['group'] as String?)?.trim() ?? 'Б-ПИГМУ-24';
       } else {
-        setState(() {
-          _userGroup = 'Б-ПИГМУ-24';
-          _isLoading = false;
-        });
+        _userGroup = 'Б-ПИГМУ-24';
       }
     } catch (e) {
-      setState(() {
-        _userGroup = 'Б-ПИГМУ-24';
-        _isLoading = false;
-      });
+      _userGroup = 'Б-ПИГМУ-24';
     }
   }
 
-  List<DateTime> _getDatesForWeek() {
+  // ✅ Загрузка графика из Firebase
+  Future<void> _loadCalendar() async {
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('semester_calendar')
+          .orderBy('createdAt', descending: true)
+          .limit(1)
+          .get();
+
+      if (snapshot.docs.isNotEmpty) {
+        final data = snapshot.docs.first.data();
+        final List<dynamic> datesStr = data['odd_weeks'] ?? [];
+
+        _oddWeeks = datesStr.map((str) {
+          final parts = str.toString().split('-');
+          return DateTime(int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2]));
+        }).toList();
+      } else {
+        _setDefaultCalendar();
+      }
+    } catch (e) {
+      debugPrint('Ошибка загрузки календаря: $e');
+      _setDefaultCalendar();
+    }
+  }
+
+  void _setDefaultCalendar() {
+    _oddWeeks = [
+      DateTime(2026, 8, 31), DateTime(2026, 9, 14), DateTime(2026, 9, 28),
+      DateTime(2026, 10, 12), DateTime(2026, 10, 26), DateTime(2026, 11, 9),
+      DateTime(2026, 11, 23), DateTime(2026, 12, 7), DateTime(2026, 12, 21),
+    ];
+  }
+
+  DateTime _getMondayForSelectedWeek() {
     final now = DateTime.now();
     final currentMonday = now.subtract(Duration(days: now.weekday - 1));
-    final targetMonday = _selectedWeek == 2
-        ? currentMonday.add(const Duration(days: 7))
-        : currentMonday;
+    return currentMonday.add(Duration(days: _selectedWeek * 7));
+  }
 
-    return List.generate(6, (index) {
-      return targetMonday.add(Duration(days: index));
-    });
+  int _getWeekNumber(DateTime date) {
+    final targetDate = DateTime(date.year, date.month, date.day);
+    for (final startDate in _oddWeeks) {
+      final endDate = startDate.add(const Duration(days: 6));
+      if ((targetDate.isAtSameMomentAs(startDate) || targetDate.isAfter(startDate)) &&
+          targetDate.isBefore(endDate.add(const Duration(days: 1)))) {
+        return 1; // Нечетная
+      }
+    }
+    return 2; // Четная
+  }
+
+  List<DateTime> _getDatesForWeek() {
+    final monday = _getMondayForSelectedWeek();
+    return List.generate(6, (index) => monday.add(Duration(days: index)));
   }
 
   String _formatDayHeader(DateTime date) {
@@ -98,12 +124,20 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
     final dates = _getDatesForWeek();
     final currentMonth = DateFormat('MMMM', 'ru_RU').format(dates.first);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    final selectedDate = dates.first;
+    final weekNum = _getWeekNumber(selectedDate);
+    final isEven = weekNum == 2;
+
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor, // ✅ Динамический фон
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
         children: [
           Container(
@@ -111,7 +145,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: isDark
-                    ? [Theme.of(context).cardColor, Theme.of(context).cardColor] // В темной теме без градиента
+                    ? [Theme.of(context).cardColor, Theme.of(context).cardColor]
                     : [const Color(0xFF3D6FA3), AppTheme.primaryNavy],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
@@ -133,19 +167,9 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                     Expanded(
                       child: Column(
                         children: [
-                          Text(
-                            'Расписание',
-                            style: TextStyle(
-                                color: isDark ? Colors.white : Colors.white,
-                                fontSize: 18, fontWeight: FontWeight.w600),
-                          ),
+                          Text('Расписание', style: TextStyle(color: isDark ? Colors.white : Colors.white, fontSize: 18, fontWeight: FontWeight.w600)),
                           const SizedBox(height: 4),
-                          Text(
-                            'группа $_userGroup',
-                            style: TextStyle(
-                                color: isDark ? Colors.white70 : Colors.white.withValues(alpha: 0.8),
-                                fontSize: 12),
-                          ),
+                          Text('группа $_userGroup', style: TextStyle(color: isDark ? Colors.white70 : Colors.white.withValues(alpha: 0.8), fontSize: 12)),
                         ],
                       ),
                     ),
@@ -156,61 +180,37 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                 Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
-                    color: isDark
-                        ? Colors.white.withValues(alpha: 0.1)
-                        : Colors.black.withValues(alpha: 0.15),
+                    color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(30),
                   ),
                   child: Row(
                     children: [
                       Expanded(
                         child: GestureDetector(
-                          onTap: () => setState(() => _selectedWeek = 1),
+                          onTap: () => setState(() => _selectedWeek = 0),
                           child: Container(
                             padding: const EdgeInsets.symmetric(vertical: 10),
                             decoration: BoxDecoration(
-                              color: _selectedWeek != 2
-                                  ? (isDark ? Colors.white : Colors.white)
-                                  : Colors.transparent,
+                              color: _selectedWeek == 0 ? Colors.white : Colors.transparent,
                               borderRadius: BorderRadius.circular(30),
                             ),
                             child: Center(
-                              child: Text(
-                                'Эта неделя',
-                                style: TextStyle(
-                                  color: _selectedWeek != 2
-                                      ? (isDark ? AppTheme.primaryNavy : AppTheme.primaryNavy)
-                                      : Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 13,
-                                ),
-                              ),
+                              child: Text('Эта неделя', style: TextStyle(color: _selectedWeek == 0 ? AppTheme.primaryNavy : Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
                             ),
                           ),
                         ),
                       ),
                       Expanded(
                         child: GestureDetector(
-                          onTap: () => setState(() => _selectedWeek = 2),
+                          onTap: () => setState(() => _selectedWeek = 1),
                           child: Container(
                             padding: const EdgeInsets.symmetric(vertical: 10),
                             decoration: BoxDecoration(
-                              color: _selectedWeek == 2
-                                  ? (isDark ? Colors.white : Colors.white)
-                                  : Colors.transparent,
+                              color: _selectedWeek == 1 ? Colors.white : Colors.transparent,
                               borderRadius: BorderRadius.circular(30),
                             ),
                             child: Center(
-                              child: Text(
-                                'Следующая',
-                                style: TextStyle(
-                                  color: _selectedWeek == 2
-                                      ? (isDark ? AppTheme.primaryNavy : AppTheme.primaryNavy)
-                                      : Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 13,
-                                ),
-                              ),
+                              child: Text('Следующая', style: TextStyle(color: _selectedWeek == 1 ? AppTheme.primaryNavy : Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
                             ),
                           ),
                         ),
@@ -220,16 +220,14 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  '${dates.first.day}–${dates.last.day} $currentMonth · ${_selectedWeek == 1 ? "нечетная неделя" : "четная неделя"}',
-                  style: TextStyle(
-                      color: isDark ? Colors.white70 : Colors.white.withValues(alpha: 0.8),
-                      fontSize: 12, fontWeight: FontWeight.w500),
+                  '${dates.first.day}–${dates.last.day} $currentMonth · ${isEven ? "четная неделя" : "нечетная неделя"}',
+                  style: TextStyle(color: isDark ? Colors.white70 : Colors.white.withValues(alpha: 0.8), fontSize: 12, fontWeight: FontWeight.w500),
                 ),
               ],
             ),
           ),
           Container(
-            color: Theme.of(context).cardColor, // ✅ Динамический фон для полосы дней
+            color: Theme.of(context).cardColor,
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -246,23 +244,9 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                     ),
                     child: Column(
                       children: [
-                        Text(
-                          _days[i],
-                          style: TextStyle(
-                            color: isSelected ? Colors.white60 : Theme.of(context).textTheme.bodySmall?.color,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
+                        Text(_days[i], style: TextStyle(color: isSelected ? Colors.white60 : Theme.of(context).textTheme.bodySmall?.color, fontSize: 11, fontWeight: FontWeight.w500)),
                         const SizedBox(height: 4),
-                        Text(
-                          dates[i].day.toString(),
-                          style: TextStyle(
-                            color: isSelected ? Colors.white : Theme.of(context).textTheme.titleMedium?.color,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
+                        Text(dates[i].day.toString(), style: TextStyle(color: isSelected ? Colors.white : Theme.of(context).textTheme.titleMedium?.color, fontSize: 16, fontWeight: FontWeight.w700)),
                       ],
                     ),
                   ),
@@ -275,26 +259,16 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.start,
               children: [
-                Text(
-                  _formatDayHeader(dates[_selectedDay]),
-                  style: Theme.of(context).textTheme.titleMedium, // ✅
-                ),
+                Text(_formatDayHeader(dates[_selectedDay]), style: Theme.of(context).textTheme.titleMedium),
               ],
             ),
           ),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('lessons')
-                  .where('group', isEqualTo: _userGroup)
-                  .snapshots(),
+              stream: FirebaseFirestore.instance.collection('lessons').where('group', isEqualTo: _userGroup).snapshots(),
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snapshot.hasError) {
-                  return Center(child: Text('Ошибка: ${snapshot.error}'));
-                }
+                if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+                if (snapshot.hasError) return Center(child: Text('Ошибка: ${snapshot.error}'));
 
                 final docs = snapshot.data?.docs ?? [];
                 final lessons = docs.map((doc) {
@@ -302,24 +276,17 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                   data['id'] = doc.id;
                   return Lesson.fromMap(doc.id, data);
                 }).where((lesson) {
-                  final dayMatch = lesson.dayIndex == _selectedDay;
-                  final weekMatch = lesson.week == 0 || lesson.week == _selectedWeek;
-                  return dayMatch && weekMatch;
+                  return lesson.dayIndex == _selectedDay && (lesson.week == 0 || lesson.week == weekNum);
                 }).toList();
 
                 lessons.sort((a, b) {
                   String timeA = a.time.split('-')[0].trim();
                   String timeB = b.time.split('-')[0].trim();
-
                   int hourA = int.tryParse(timeA.split(':')[0]) ?? 0;
                   int minA = int.tryParse(timeA.split(':')[1]) ?? 0;
-
                   int hourB = int.tryParse(timeB.split(':')[0]) ?? 0;
                   int minB = int.tryParse(timeB.split(':')[1]) ?? 0;
-
-                  if (hourA != hourB) {
-                    return hourA.compareTo(hourB);
-                  }
+                  if (hourA != hourB) return hourA.compareTo(hourB);
                   return minA.compareTo(minB);
                 });
 
@@ -332,19 +299,11 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.free_breakfast_outlined,
-                            size: 64,
-                            color: Theme.of(context).textTheme.bodySmall?.color?.withValues(alpha: 0.5)), // ✅
+                        Icon(Icons.free_breakfast_outlined, size: 64, color: Theme.of(context).textTheme.bodySmall?.color?.withValues(alpha: 0.5)),
                         const SizedBox(height: 16),
-                        Text('Пар нет',
-                            style: TextStyle(
-                                fontSize: 18,
-                                color: Theme.of(context).textTheme.bodySmall?.color)), // ✅
+                        Text('Пар нет', style: TextStyle(fontSize: 18, color: Theme.of(context).textTheme.bodySmall?.color)),
                         const SizedBox(height: 8),
-                        Text('Можно отдохнуть!',
-                            style: TextStyle(
-                                fontSize: 14,
-                                color: Theme.of(context).textTheme.bodySmall?.color)), // ✅
+                        Text('Можно отдохнуть!', style: TextStyle(fontSize: 14, color: Theme.of(context).textTheme.bodySmall?.color)),
                       ],
                     ),
                   );
@@ -367,7 +326,6 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
 
 class _LessonCard extends StatelessWidget {
   final Lesson lesson;
-
   const _LessonCard({required this.lesson});
 
   Color get _typeColor {
@@ -396,15 +354,9 @@ class _LessonCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor, // ✅ Динамический цвет карточки
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha: Theme.of(context).brightness == Brightness.dark ? 0.2 : 0.03),
-              blurRadius: 10,
-              offset: const Offset(0, 4)
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: Theme.of(context).brightness == Brightness.dark ? 0.2 : 0.03), blurRadius: 10, offset: const Offset(0, 4))],
       ),
       child: IntrinsicHeight(
         child: Row(
@@ -413,27 +365,15 @@ class _LessonCard extends StatelessWidget {
             Container(
               width: 80,
               padding: const EdgeInsets.symmetric(vertical: 16),
-              decoration: BoxDecoration(
-                color: _typeColor,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(16),
-                  bottomLeft: Radius.circular(16),
-                ),
-              ),
+              decoration: BoxDecoration(color: _typeColor, borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), bottomLeft: Radius.circular(16))),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(
-                    _times.isNotEmpty ? _times[0].trim() : '',
-                    style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
+                  Text(_times.isNotEmpty ? _times[0].trim() : '', style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 4),
                   Container(width: 20, height: 1, color: Colors.white54),
                   const SizedBox(height: 4),
-                  Text(
-                    _times.length > 1 ? _times[1].trim() : '',
-                    style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500),
-                  ),
+                  Text(_times.length > 1 ? _times[1].trim() : '', style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500)),
                 ],
               ),
             ),
@@ -448,48 +388,23 @@ class _LessonCard extends StatelessWidget {
                       children: [
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: _typeColor.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            _typeLabel,
-                            style: TextStyle(fontSize: 10, color: _typeColor, fontWeight: FontWeight.bold),
-                          ),
+                          decoration: BoxDecoration(color: _typeColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
+                          child: Text(_typeLabel, style: TextStyle(fontSize: 10, color: _typeColor, fontWeight: FontWeight.bold)),
                         ),
                         if (lesson.week != 0) ...[
                           const SizedBox(width: 6),
-                          Text(
-                            lesson.week == 1 ? "нечет." : "чет.",
-                            style: TextStyle(
-                                fontSize: 10,
-                                color: Theme.of(context).textTheme.bodySmall?.color,
-                                fontWeight: FontWeight.bold
-                            ),
-                          )
+                          Text(lesson.week == 1 ? "нечет." : "чет.", style: TextStyle(fontSize: 10, color: Theme.of(context).textTheme.bodySmall?.color, fontWeight: FontWeight.bold))
                         ]
                       ],
                     ),
                     const SizedBox(height: 6),
-                    Text(
-                      lesson.subject,
-                      style: Theme.of(context).textTheme.titleMedium, // ✅
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                    Text(lesson.subject, style: Theme.of(context).textTheme.titleMedium, maxLines: 2, overflow: TextOverflow.ellipsis),
                     const SizedBox(height: 8),
                     Row(
                       children: [
                         Icon(Icons.person_outline, size: 14, color: Theme.of(context).textTheme.bodySmall?.color),
                         const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            lesson.teacher,
-                            style: Theme.of(context).textTheme.bodySmall, // ✅
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
+                        Expanded(child: Text(lesson.teacher, style: Theme.of(context).textTheme.bodySmall, maxLines: 1, overflow: TextOverflow.ellipsis)),
                       ],
                     ),
                     const SizedBox(height: 6),
@@ -497,10 +412,7 @@ class _LessonCard extends StatelessWidget {
                       children: [
                         Icon(Icons.location_on_outlined, size: 14, color: Theme.of(context).textTheme.bodySmall?.color),
                         const SizedBox(width: 4),
-                        Text(
-                          'Кабинет: ${lesson.room}',
-                          style: Theme.of(context).textTheme.bodySmall, // ✅
-                        ),
+                        Text('Кабинет: ${lesson.room}', style: Theme.of(context).textTheme.bodySmall),
                       ],
                     ),
                   ],

@@ -28,6 +28,8 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("debug")
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 }
@@ -36,7 +38,6 @@ flutter {
     source = "../.."
 }
 
-// ✅ ВАЖНО: Принудительно ставим версию JVM 17 для Kotlin
 kotlin {
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)

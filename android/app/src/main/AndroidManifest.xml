@@ -37,7 +37,7 @@
 
         <!-- ✅ Главная активность -->
         <activity
-            android:name="com.example.campus_imi.MainActivity"
+            android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
             android:taskAffinity=""

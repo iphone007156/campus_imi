@@ -9,7 +9,8 @@ import 'support_screen.dart';
 import 'admin_groups_screen.dart';
 import 'admin_export_screen.dart';
 import 'admin_departments_screen.dart';
-import 'admin_calendar_import_screen.dart'; // ✅ Импорт экрана импорта КУГ
+import 'admin_calendar_import_screen.dart';
+import 'admin_import_calendar_screen.dart'; // ✅ Импорт нового экрана
 
 class AdminHomeScreen extends StatelessWidget {
   const AdminHomeScreen({super.key});
@@ -22,12 +23,15 @@ class AdminHomeScreen extends StatelessWidget {
     _AdminCardItem(icon: Icons.campaign, label: 'Новости', subtitle: 'Публикация', color: Color(0xFFB8922A)),
     _AdminCardItem(icon: Icons.file_download_outlined, label: 'Экспорт в Excel', subtitle: 'Выгрузка данных студентов', color: Colors.teal),
     _AdminCardItem(icon: Icons.apartment, label: 'Подразделения', subtitle: 'Институты и колледжи', color: Colors.indigo),
-    _AdminCardItem(icon: Icons.calendar_today, label: 'Учебный план', subtitle: 'Импорт КУГ из Excel', color: Colors.deepPurple), // ✅ НОВЫЙ ПУНКТ
+    _AdminCardItem(icon: Icons.calendar_today, label: 'Учебный план', subtitle: 'Импорт КУГ из Excel', color: Colors.deepPurple),
+    _AdminCardItem(icon: Icons.date_range, label: 'График недель', subtitle: 'Четность семестра', color: Colors.blueAccent), // ✅ Новый пункт
     _AdminCardItem(icon: Icons.support_agent, label: 'Техподдержка', subtitle: 'Обращения студентов', color: Color(0xFFFF6B35)),
   ];
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Панель администратора'),
@@ -39,7 +43,7 @@ class AdminHomeScreen extends StatelessWidget {
           IconButton(icon: const Icon(Icons.logout), onPressed: () => _showLogoutDialog(context)),
         ],
       ),
-      backgroundColor: AppTheme.backgroundGray,
+      backgroundColor: theme.scaffoldBackgroundColor, // ✅ Динамический фон
       body: ListView.separated(
         padding: const EdgeInsets.all(AppTheme.s16),
         itemCount: _cards.length,
@@ -63,7 +67,8 @@ class AdminHomeScreen extends StatelessWidget {
       case 'Подразделения': screen = const AdminDepartmentsScreen(); break;
       case 'Техподдержка': screen = const SupportScreen(); break;
       case 'Экспорт в Excel': screen = const AdminExportScreen(); break;
-      case 'Учебный план': screen = const AdminCalendarImportScreen(); break; // ✅
+      case 'Учебный план': screen = const AdminCalendarImportScreen(); break;
+      case 'График недель': screen = const AdminImportCalendarScreen(); break; // ✅ Навигация
     }
     if (screen != null) {
       Navigator.push(context, MaterialPageRoute(builder: (_) => screen!));
@@ -106,8 +111,9 @@ class _AdminTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Material(
-      color: AppTheme.cardWhite,
+      color: theme.cardColor, // ✅ Динамический цвет карточки
       borderRadius: BorderRadius.circular(AppTheme.radiusMd),
       child: InkWell(
         borderRadius: BorderRadius.circular(AppTheme.radiusMd),
@@ -129,13 +135,13 @@ class _AdminTile extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(item.label, style: Theme.of(context).textTheme.titleMedium),
+                    Text(item.label, style: theme.textTheme.titleMedium),
                     const SizedBox(height: 2),
-                    Text(item.subtitle, style: Theme.of(context).textTheme.bodySmall),
+                    Text(item.subtitle, style: theme.textTheme.bodySmall),
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right, color: AppTheme.textMuted, size: 20),
+              Icon(Icons.chevron_right, color: theme.disabledColor, size: 20),
             ],
           ),
         ),
