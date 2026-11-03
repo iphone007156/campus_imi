@@ -6,7 +6,7 @@ import 'package:onesignal_flutter/onesignal_flutter.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-import 'settings_service.dart'; // ✅ добавлено
+import 'settings_service.dart';
 
 class NotificationService {
   static final FlutterLocalNotificationsPlugin _localPlugin =
@@ -25,20 +25,30 @@ class NotificationService {
       requestSoundPermission: true,
     );
 
-    await _localPlugin.initialize(
-      const InitializationSettings(android: androidSettings, iOS: iosSettings),
+    const initSettings = InitializationSettings(
+      android: androidSettings,
+      iOS: iosSettings,
+    );
+
+    await _localPlugin.initialize(initSettings);
+
+    // ✅ Запрос разрешений для iOS (критично!)
+    final iosPlugin = _localPlugin
+        .resolvePlatformSpecificImplementation<
+        IOSFlutterLocalNotificationsPlugin>();
+    await iosPlugin?.requestPermissions(
+      alert: true,
+      badge: true,
+      sound: true,
     );
 
     // ✅ Запрос разрешений на уведомления (Android 13+)
-    await _localPlugin
-        .resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>()
-        ?.requestNotificationsPermission();
-
-    // ✅ Запрос разрешения на точные будильники (Android 12+)
     final androidPlugin = _localPlugin
         .resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
+    await androidPlugin?.requestNotificationsPermission();
+
+    // ✅ Запрос разрешения на точные будильники (Android 12+)
     if (androidPlugin != null) {
       final canScheduleExact =
       await androidPlugin.canScheduleExactNotifications();
@@ -57,17 +67,12 @@ class NotificationService {
     });
   }
 
-  /// ✅ Отмена всех локальных уведомлений
   static Future<void> cancelAll() async {
     await _localPlugin.cancelAll();
     debugPrint('🔔 [NOTIF] Все локальные уведомления отменены');
   }
 
-  /// ✅ Планирование напоминаний о парах.
-  /// Парсит время из `lesson.time` (например, "8:00-9:35" или "8.00-9.35")
-  /// и ставит уведомление за 10 минут до начала.
   static Future<void> scheduleLessonReminders(List<dynamic> lessons) async {
-    // ✅ Если уведомления отключены — ничего не планируем
     if (!SettingsService.instance.notificationsEnabled) {
       debugPrint('🔔 [NOTIF] Уведомления отключены, пропускаем');
       return;
@@ -82,11 +87,20 @@ class NotificationService {
     final now = tz.TZDateTime.now(tz.local);
     int scheduled = 0;
 
+    // ✅ Проверяем, разрешены ли точные будильники (для Android 14)
+    bool canScheduleExact = false;
+    final androidPlugin = _localPlugin
+        .resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    if (androidPlugin != null) {
+      canScheduleExact =
+          await androidPlugin.canScheduleExactNotifications() ?? false;
+    }
+
     for (final lesson in lessons) {
       try {
         final dayIndex = (lesson.dayIndex as int?) ?? 0;
 
-        // ✅ Поддерживаем форматы "8:00-9:35" и "8.00-9.35"
         final rawTime = (lesson.time as String?) ?? '';
         final timeStr = rawTime
             .split('-')
@@ -131,16 +145,23 @@ class NotificationService {
           'Скоро пара',
           '${lesson.subject} · ${lesson.room} · ${lesson.time}',
           reminderTime,
-          const NotificationDetails(
-            android: AndroidNotificationDetails(
+          NotificationDetails(
+            android: const AndroidNotificationDetails(
               'lesson_reminders',
               'Напоминания о парах',
               importance: Importance.high,
               priority: Priority.high,
             ),
+            iOS: const DarwinNotificationDetails(
+              presentAlert: true,
+              presentBadge: true,
+              presentSound: true,
+            ),
           ),
-          androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-          // ✅ Повторять каждую неделю
+          // ✅ На Android 14 без разрешения используем неточный режим
+          androidScheduleMode: canScheduleExact
+              ? AndroidScheduleMode.exactAllowWhileIdle
+              : AndroidScheduleMode.inexactAllowWhileIdle,
           matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
         );
         scheduled++;
@@ -152,7 +173,6 @@ class NotificationService {
     debugPrint('🔔 [NOTIF] Запланировано: $scheduled из ${lessons.length}');
   }
 
-  /// ✅ Тестовое уведомление через 10 секунд (для проверки).
   static Future<void> testNotification() async {
     final now = tz.TZDateTime.now(tz.local);
     await _localPlugin.zonedSchedule(
@@ -167,6 +187,11 @@ class NotificationService {
           importance: Importance.high,
           priority: Priority.high,
         ),
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+        ),
       ),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
     );
@@ -174,8 +199,6 @@ class NotificationService {
         '🔔 [NOTIF] Тест запланирован на ${now.add(const Duration(seconds: 10))}');
   }
 
-  /// ✅ Вычисляет ближайшую дату для заданного дня недели.
-  /// dayIndex: 0 = понедельник, 1 = вторник, ..., 5 = суббота.
   static DateTime _nextDateForWeekday(DateTime now, int dayIndex) {
     final targetWeekday = dayIndex + 1;
     var diff = targetWeekday - now.weekday;

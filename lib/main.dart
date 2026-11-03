@@ -29,6 +29,10 @@ void main() async {
 
     await SettingsService.instance.loadSettings();
 
+    // ✅ 1. СНАЧАЛА локальные уведомления (критично для iOS)
+    await NotificationService.initialize();
+
+    // ✅ 2. ПОТОМ OneSignal
     OneSignal.Debug.setLogLevel(OSLogLevel.verbose);
     OneSignal.initialize("dca38e09-702f-4808-95e4-ecbb2213dfd1");
 
@@ -38,8 +42,6 @@ void main() async {
     } else {
       OneSignal.User.pushSubscription.optOut();
     }
-
-    await NotificationService.initialize();
   } catch (e) {
     debugPrint('Initialization error: $e');
   }
