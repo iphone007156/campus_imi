@@ -11,6 +11,7 @@ import 'admin_export_screen.dart';
 import 'admin_departments_screen.dart';
 import 'admin_calendar_import_screen.dart';
 import 'admin_import_calendar_screen.dart'; // ✅ Импорт нового экрана
+import 'admin_reports_screen.dart';
 
 class AdminHomeScreen extends StatelessWidget {
   const AdminHomeScreen({super.key});
@@ -26,6 +27,7 @@ class AdminHomeScreen extends StatelessWidget {
     _AdminCardItem(icon: Icons.calendar_today, label: 'Учебный план', subtitle: 'Импорт КУГ из Excel', color: Colors.deepPurple),
     _AdminCardItem(icon: Icons.date_range, label: 'График недель', subtitle: 'Четность семестра', color: Colors.blueAccent), // ✅ Новый пункт
     _AdminCardItem(icon: Icons.support_agent, label: 'Техподдержка', subtitle: 'Обращения студентов', color: Color(0xFFFF6B35)),
+    _AdminCardItem(icon: Icons.flag_outlined, label: 'Жалобы', subtitle: 'Сообщения из чатов групп', color: Color(0xFFB3261E)),
   ];
 
   @override
@@ -66,6 +68,7 @@ class AdminHomeScreen extends StatelessWidget {
       case 'Новости': screen = const AddNewsScreen(); break;
       case 'Подразделения': screen = const AdminDepartmentsScreen(); break;
       case 'Техподдержка': screen = const SupportScreen(); break;
+      case 'Жалобы': screen = const AdminReportsScreen(); break;
       case 'Экспорт в Excel': screen = const AdminExportScreen(); break;
       case 'Учебный план': screen = const AdminCalendarImportScreen(); break;
       case 'График недель': screen = const AdminImportCalendarScreen(); break; // ✅ Навигация

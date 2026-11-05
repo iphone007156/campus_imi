@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import '../theme/app_theme.dart';
+import '../widgets/app_ui.dart';
 import '../models/subject.dart';
 import '../models/calendar_event.dart';
 import '../services/firestore_service.dart';
@@ -91,7 +92,7 @@ class _GradesTab extends StatelessWidget {
       stream: firestoreService.getSubjects(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-        if (snapshot.hasError) return Center(child: Text('Ошибка: ${snapshot.error}'));
+        if (snapshot.hasError) return const AppErrorState();
 
         final subjects = snapshot.data ?? [];
         final graded = subjects.where((s) => s.grade != null).toList();
@@ -117,7 +118,7 @@ class _GradesTab extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   if (subjects.isEmpty)
-                    _EmptyState(icon: Icons.menu_book_outlined, title: t('no_grades'), subtitle: 'Оценки появятся после первой сессии')
+                    AppEmptyState(icon: Icons.menu_book_outlined, title: t('no_grades'), message: 'Оценки появятся после первой сессии')
                   else
                     ...subjects.map((s) => _SubjectTile(subject: s)),
                 ],
@@ -194,9 +195,12 @@ class _GpaCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.baseline,
                     textBaseline: TextBaseline.alphabetic,
                     children: [
-                      Text(gpa.toStringAsFixed(2), style: TextStyle(fontSize: 40, fontWeight: FontWeight.w800, color: Theme.of(context).textTheme.titleMedium?.color, letterSpacing: -1)),
-                      const SizedBox(width: 4),
-                      Text('/ 5.0', style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 16, fontWeight: FontWeight.w600)),
+                      // Без оценок среднего балла нет: показываем «—», а не «0.00».
+                      Text(gradedCount == 0 ? '—' : gpa.toStringAsFixed(2), style: TextStyle(fontSize: 40, fontWeight: FontWeight.w800, color: Theme.of(context).textTheme.titleMedium?.color, letterSpacing: -1)),
+                      if (gradedCount > 0) ...[
+                        const SizedBox(width: 4),
+                        Text('/ 5.0', style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 16, fontWeight: FontWeight.w600)),
+                      ],
                     ],
                   ),
                 ],
@@ -204,8 +208,8 @@ class _GpaCard extends StatelessWidget {
               const Spacer(),
               Container(
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: gpa >= 4.5 ? Colors.green.withValues(alpha: 0.1) : Colors.orange.withValues(alpha: 0.1), shape: BoxShape.circle),
-                child: Icon(gpa >= 4.5 ? Icons.star_rounded : Icons.trending_up_rounded, color: gpa >= 4.5 ? Colors.green : Colors.orange, size: 32),
+                decoration: BoxDecoration(color: gradedCount == 0 ? appAccentSoftColor(context) : (gpa >= 4.5 ? Colors.green.withValues(alpha: 0.1) : Colors.orange.withValues(alpha: 0.1)), shape: BoxShape.circle),
+                child: Icon(gradedCount == 0 ? Icons.hourglass_empty_rounded : (gpa >= 4.5 ? Icons.star_rounded : Icons.trending_up_rounded), color: gradedCount == 0 ? appMutedColor(context) : (gpa >= 4.5 ? Colors.green : Colors.orange), size: 32),
               ),
             ],
           ),
@@ -214,7 +218,7 @@ class _GpaCard extends StatelessWidget {
             children: [
               _StatItem(label: 'Всего', value: '$totalSubjects', color: AppTheme.accentBlue),
               _StatItem(label: 'Сдано', value: '$gradedCount', color: Colors.green),
-              _StatItem(label: 'Долги', value: '$debts', color: debts > 0 ? Colors.red : Colors.green),
+              _StatItem(label: 'Без оценки', value: '$debts', color: debts > 0 ? Colors.orange : Colors.green),
             ],
           ),
         ],
@@ -250,43 +254,44 @@ class _SubjectTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isGraded = subject.grade != null;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Theme.of(context).cardColor, borderRadius: BorderRadius.circular(16), border: Border.all(color: Theme.of(context).dividerColor)),
-      child: Row(
-        children: [
-          Container(
-            width: 48, height: 48,
-            decoration: BoxDecoration(color: isGraded ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1) : Colors.orange.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
-            child: Icon(isGraded ? Icons.check_circle_outline : Icons.hourglass_empty, color: isGraded ? Theme.of(context).colorScheme.primary : Colors.orange, size: 24),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(subject.name, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 15)),
-                const SizedBox(height: 4),
-                Text('${subject.type} • ${subject.teacher}', style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 12)),
-              ],
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: AppCard(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              width: 48, height: 48,
+              decoration: BoxDecoration(color: isGraded ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1) : Colors.orange.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
+              child: Icon(isGraded ? Icons.check_circle_outline : Icons.hourglass_empty, color: isGraded ? Theme.of(context).colorScheme.primary : Colors.orange, size: 24),
             ),
-          ),
-          if (isGraded)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(color: _getGradeColor(subject.grade!).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
-              child: Text('${subject.grade}', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: _getGradeColor(subject.grade!))),
-            )
-          else if (subject.gradeText.isNotEmpty)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(color: Colors.green.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
-              child: Text(subject.gradeText, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.green)),
-            )
-          else
-            Text('—', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Theme.of(context).textTheme.bodySmall?.color)),
-        ],
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(subject.name, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 15)),
+                  const SizedBox(height: 4),
+                  Text('${subject.type} • ${subject.teacher}', style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 12)),
+                ],
+              ),
+            ),
+            if (isGraded)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(color: _getGradeColor(subject.grade!).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
+                child: Text('${subject.grade}', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: _getGradeColor(subject.grade!))),
+              )
+            else if (subject.gradeText.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(color: Colors.green.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
+                child: Text(subject.gradeText, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.green)),
+              )
+            else
+              Text('—', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Theme.of(context).textTheme.bodySmall?.color)),
+          ],
+        ),
       ),
     );
   }

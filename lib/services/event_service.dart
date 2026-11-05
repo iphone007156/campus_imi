@@ -58,7 +58,17 @@ class EventService {
       throw Exception('Активист может ставить не более 20 баллов');
     }
 
-    await _db.collection('events').doc(event.id).update(event.toMap());
+    // Не перезаписываем поля, которые меняют другие люди (записи студентов,
+    // отметки посещения) или которые нельзя менять после создания.
+    final data = event.toMap()
+      ..remove('participants')
+      ..remove('registeredAt')
+      ..remove('attended')
+      ..remove('finalized')
+      ..remove('createdAt')
+      ..remove('organizerId');
+
+    await _db.collection('events').doc(event.id).update(data);
   }
 
   Future<void> deleteEvent(String eventId) async {
@@ -242,31 +252,46 @@ class EventService {
       throw Exception('Нет прав на завершение');
     }
 
-    // ✅ Используем batch для атомарного начисления
-    final batch = _db.batch();
+    final isAdmin = role == UserRole.admin;
 
-    for (String uid in event.attended) {
-      final uRef = _db.collection('users').doc(uid);
-      final uDoc = await uRef.get();
-      if (uDoc.exists) {
-        final data = uDoc.data() ?? {};
-        final currentPoints =
-            int.tryParse(data['unionPoints']?.toString() ?? '0') ?? 0;
-
-        batch.update(uRef, {
-          'unionPoints': currentPoints + event.points,
-        });
-      }
+    // Кому начисляем: уникальные отмеченные участники. Организатор-активист
+    // не начисляет баллы сам себе (это запрещено правилами базы).
+    final recipients = <String>[];
+    for (final uid in event.attended) {
+      if (uid.isEmpty || recipients.contains(uid)) continue;
+      if (!isAdmin && uid == user.uid) continue;
+      recipients.add(uid);
     }
 
-    // Помечаем мероприятие завершённым
-    batch.update(_db.collection('events').doc(eventId), {
-      'finalized': true,
-      'finalizedAt': FieldValue.serverTimestamp(),
-    });
+    // Оставляем только существующих пользователей, иначе вся пачка откатится.
+    final existing = <String>[];
+    for (final uid in recipients) {
+      final uDoc = await _db.collection('users').doc(uid).get();
+      if (uDoc.exists) existing.add(uid);
+    }
 
-    await batch.commit();
-    print('✅ Начислено ${event.points} баллов ${event.attended.length} участникам');
+    // Баллы увеличиваем на сервере (increment): без гонок между одновременными
+    // начислениями. Отметка «завершено» идёт в первой пачке вместе с баллами.
+    const chunkSize = 400;
+    for (int start = 0; start < existing.length || start == 0; start += chunkSize) {
+      final batch = _db.batch();
+      final end = (start + chunkSize) > existing.length ? existing.length : start + chunkSize;
+      for (final uid in existing.sublist(start, end)) {
+        batch.update(_db.collection('users').doc(uid), {
+          'unionPoints': FieldValue.increment(event.points),
+        });
+      }
+      if (start == 0) {
+        batch.update(_db.collection('events').doc(eventId), {
+          'finalized': true,
+          'finalizedAt': FieldValue.serverTimestamp(),
+        });
+      }
+      await batch.commit();
+      if (existing.isEmpty) break;
+    }
+    // ignore: avoid_print
+    print('✅ Начислено ${event.points} баллов ${existing.length} участникам');
   }
 
   // ===== БАЛЛЫ =====

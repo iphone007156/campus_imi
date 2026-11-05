@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import 'guest_screen.dart';
 import 'auth_screen.dart';
+import 'register_screen.dart';
 import 'about_screen.dart'; // ✅ Импортируем экран "О проекте"
 
 // ─── Вспомогательные классы ───
@@ -165,25 +166,49 @@ class _SplashScreenState extends State<SplashScreen>
                     ),
                     const Spacer(flex: 3),
 
-                    // Кнопки входа
-                    RoleButton(
-                      label: 'Студент',
-                      icon: Icons.school_outlined,
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const AuthScreen(),
+                    // Один главный шаг и два вторичных
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: FilledButton(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: AppTheme.primaryNavy,
                         ),
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const AuthScreen()),
+                        ),
+                        child: const Text('Войти'),
                       ),
                     ),
                     const SizedBox(height: 12),
-                    RoleButton(
-                      label: 'Гость',
-                      icon: Icons.person_outline,
-                      onTap: () => Navigator.push(
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          side: BorderSide(color: Colors.white.withValues(alpha: 0.6)),
+                        ),
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                        ),
+                        child: const Text('Создать аккаунт'),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: () => Navigator.push(
                         context,
-                        MaterialPageRoute(
-                          builder: (_) => const GuestScreen(),
+                        MaterialPageRoute(builder: (_) => const GuestScreen()),
+                      ),
+                      child: Text(
+                        'Продолжить как гость',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.85),
+                          fontSize: 14,
                         ),
                       ),
                     ),
@@ -215,7 +240,7 @@ class _SplashScreenState extends State<SplashScreen>
                       'Северо-Восточный федеральный университет',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.35),
+                        color: Colors.white.withValues(alpha: 0.7),
                         fontSize: 11,
                       ),
                     ),

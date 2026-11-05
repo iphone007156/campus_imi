@@ -20,7 +20,6 @@ class ScheduleImportService {
 
     final groups = lessons.map((l) => l.group).toSet();
 
-    // 1. Удаляем старые пары этих групп (в рамках 400/батч)
     for (final g in groups) {
       final old = await _db
           .collection('lessons')
@@ -36,7 +35,6 @@ class ScheduleImportService {
       }
     }
 
-    // 2. Пишем новые чанками по 400
     var done = 0;
     for (var i = 0; i < lessons.length; i += 400) {
       final chunk = lessons.sublist(i, (i + 400).clamp(0, lessons.length));

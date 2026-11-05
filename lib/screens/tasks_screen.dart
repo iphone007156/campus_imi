@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -7,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models/group_models.dart';
 import '../services/group_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/app_ui.dart';
 
 final _repo = GroupRepo.instance;
 final _fmt = DateFormat('dd.MM.yyyy HH:mm');
@@ -22,7 +25,7 @@ class TasksEntry extends StatelessWidget {
         if (snap.hasError) {
           return Scaffold(
             appBar: AppBar(title: const Text('Задания')),
-            body: Center(child: Text('Ошибка: ${snap.error}')),
+            body: const AppErrorState(),
           );
         }
         if (!snap.hasData) {
@@ -32,15 +35,10 @@ class TasksEntry extends StatelessWidget {
         if (a.group == null) {
           return Scaffold(
             appBar: AppBar(title: const Text('Задания')),
-            body: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text(
-                  'В профиле не указана группа. Укажите её в разделе «Профиль», и здесь появятся задания вашей группы.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color),
-                ),
-              ),
+            body: const AppEmptyState(
+              icon: Icons.groups_outlined,
+              title: 'В профиле не указана группа',
+              message: 'Укажите её в разделе «Профиль», и здесь появятся задания вашей группы',
             ),
           );
         }
@@ -106,15 +104,204 @@ class ChatTab extends StatefulWidget {
 
 class _ChatTabState extends State<ChatTab> with AutomaticKeepAliveClientMixin {
   final _ctrl = TextEditingController();
+  Set<String> _blocked = {};
+  StreamSubscription<Set<String>>? _blockedSub;
 
   @override
   bool get wantKeepAlive => true;
 
+  @override
+  void initState() {
+    super.initState();
+    _blockedSub = _repo.blockedAuthors().listen(
+          (ids) {
+        if (mounted) setState(() => _blocked = ids);
+      },
+      onError: (_) {},
+    );
+  }
+
+  @override
+  void dispose() {
+    _blockedSub?.cancel();
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _snack(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  }
+
   Future<void> _send() async {
     final t = _ctrl.text.trim();
     if (t.isEmpty) return;
-    _ctrl.clear();
-    await _repo.sendMessage(widget.groupId, t);
+    if (t.length > 1000) {
+      _snack('Сообщение слишком длинное: максимум 1000 символов');
+      return;
+    }
+    try {
+      await _repo.sendMessage(widget.groupId, t);
+      _ctrl.clear();
+    } catch (_) {
+      // Текст остаётся в поле, чтобы его не потерять.
+      _snack('Не удалось отправить сообщение. Проверьте подключение.');
+    }
+  }
+
+  /// Меню сообщения: жалоба и блокировка автора (чужие), удаление (свои и для модераторов).
+  void _showMessageActions(ChatMessage m, {required bool mine, required bool canDelete}) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: false,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const AppSheetHandle(),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  m.text,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: appMutedColor(ctx)),
+                ),
+              ),
+              if (!mine)
+                ListTile(
+                  leading: const Icon(Icons.flag_outlined, color: AppTheme.danger),
+                  title: const Text('Пожаловаться'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _showReportReasons(m);
+                  },
+                ),
+              if (!mine)
+                ListTile(
+                  leading: const Icon(Icons.person_off_outlined, color: AppTheme.danger),
+                  title: Text('Заблокировать: ${m.authorName}'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _confirmBlock(m);
+                  },
+                ),
+              if (canDelete)
+                ListTile(
+                  leading: const Icon(Icons.delete_outline),
+                  title: const Text('Удалить сообщение'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _confirmDelete(m);
+                  },
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showReportReasons(ChatMessage m) {
+    const reasons = ['Спам', 'Оскорбления', 'Неприемлемое содержание', 'Другое'];
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const AppSheetHandle(),
+              const Text(
+                'Почему вы жалуетесь?',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Жалобу увидят администраторы института',
+                style: TextStyle(fontSize: 13, color: appMutedColor(ctx)),
+              ),
+              const SizedBox(height: 8),
+              for (final reason in reasons)
+                ListTile(
+                  title: Text(reason),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () async {
+                    Navigator.pop(ctx);
+                    try {
+                      await _repo.reportMessage(
+                        groupId: widget.groupId,
+                        message: m,
+                        reason: reason,
+                      );
+                      _snack('Жалоба отправлена. Спасибо!');
+                    } catch (_) {
+                      _snack('Не удалось отправить жалобу. Попробуйте позже.');
+                    }
+                  },
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _confirmBlock(ChatMessage m) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Заблокировать автора?'),
+        content: Text(
+          'Вы больше не будете видеть сообщения ${m.authorName} в чате. '
+              'Это можно изменить позже.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Отмена')),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                await _repo.blockAuthor(m.authorId);
+                _snack('Пользователь заблокирован');
+              } catch (_) {
+                _snack('Не удалось заблокировать. Попробуйте позже.');
+              }
+            },
+            child: const Text('Заблокировать', style: TextStyle(color: AppTheme.danger)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDelete(ChatMessage m) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Удалить сообщение?'),
+        content: const Text('Сообщение пропадёт у всех участников группы.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Отмена')),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                await _repo.deleteMessage(widget.groupId, m.id);
+              } catch (_) {
+                _snack('Не удалось удалить сообщение');
+              }
+            },
+            child: const Text('Удалить', style: TextStyle(color: AppTheme.danger)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -124,13 +311,23 @@ class _ChatTabState extends State<ChatTab> with AutomaticKeepAliveClientMixin {
 
     return Column(
       children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          color: appAccentSoftColor(context),
+          child: Text(
+            'Сообщения видят участники группы. Оскорбления и спам запрещены. '
+                'Чтобы пожаловаться или заблокировать автора, нажмите на сообщение и удерживайте.',
+            style: TextStyle(fontSize: 12, color: appAccentColor(context)),
+          ),
+        ),
         Expanded(
           child: StreamBuilder<List<ChatMessage>>(
             stream: _repo.chat(widget.groupId),
             builder: (context, s) {
-              if (s.hasError) return Center(child: Text('Ошибка: ${s.error}'));
+              if (s.hasError) return const AppErrorState();
               if (!s.hasData) return const Center(child: CircularProgressIndicator());
-              final msgs = s.data!;
+              final msgs = s.data!.where((m) => !_blocked.contains(m.authorId)).toList();
               if (msgs.isEmpty) {
                 return Center(
                   child: Text('Напишите первое сообщение',
@@ -163,8 +360,8 @@ class _ChatTabState extends State<ChatTab> with AutomaticKeepAliveClientMixin {
                   return Align(
                     alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
                     child: GestureDetector(
-                      onLongPress: canDelete
-                          ? () => _repo.deleteMessage(widget.groupId, m.id)
+                      onLongPress: (!mine || canDelete)
+                          ? () => _showMessageActions(m, mine: mine, canDelete: canDelete)
                           : null,
                       child: Container(
                         margin: const EdgeInsets.symmetric(vertical: 3),
@@ -208,6 +405,8 @@ class _ChatTabState extends State<ChatTab> with AutomaticKeepAliveClientMixin {
                     controller: _ctrl,
                     minLines: 1,
                     maxLines: 4,
+                    maxLength: 1000,
+                    buildCounter: (_, {required currentLength, required isFocused, required maxLength}) => null,
                     textCapitalization: TextCapitalization.sentences,
                     decoration: InputDecoration(
                       hintText: 'Сообщение',
@@ -259,15 +458,14 @@ class MaterialsTab extends StatelessWidget {
       body: StreamBuilder<List<MaterialItem>>(
         stream: _repo.materials(groupId, category),
         builder: (context, s) {
-          if (s.hasError) return Center(child: Text('Ошибка: ${s.error}'));
+          if (s.hasError) return const AppErrorState();
           if (!s.hasData) return const Center(child: CircularProgressIndicator());
           final items = s.data!;
           if (items.isEmpty) {
-            return Center(
-              child: Text(
-                canEdit ? 'Пока пусто. Нажмите «Добавить»' : 'Пока ничего не добавлено',
-                style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color),
-              ),
+            return AppEmptyState(
+              icon: Icons.inventory_2_outlined,
+              title: 'Пока пусто',
+              message: canEdit ? 'Нажмите «Добавить», чтобы создать первую запись' : 'Здесь появится то, что добавят староста и активисты',
             );
           }
           return ListView.builder(
@@ -304,10 +502,30 @@ class MaterialCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final subtitle = [item.discipline, item.teacher].where((e) => e.isNotEmpty).join(' — ');
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      color: Theme.of(context).cardColor, // ✅
-      child: Padding(
+    final muted = appMutedColor(context);
+
+    AppTone deadlineTone(DateTime d) {
+      final left = d.difference(DateTime.now());
+      if (left.isNegative) return AppTone.danger;
+      if (left.inDays < 3) return AppTone.warning;
+      return AppTone.success;
+    }
+
+    String sizeText(int bytes) {
+      if (bytes >= 1024 * 1024) return '${(bytes / 1024 / 1024).toStringAsFixed(1)} МБ';
+      return '${(bytes / 1024).ceil()} КБ';
+    }
+
+    Future<void> openFile(String url) async {
+      // Открываем только https-ссылки: в базе не должно быть «tel:», «intent:» и т.п.
+      final uri = Uri.tryParse(url);
+      if (uri == null || uri.scheme != 'https') return;
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: AppCard(
         padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -315,7 +533,10 @@ class MaterialCard extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: Text(item.title, style: Theme.of(context).textTheme.titleMedium), // ✅
+                  child: Text(
+                    item.title,
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                  ),
                 ),
                 if (canEdit)
                   PopupMenuButton<String>(
@@ -337,14 +558,16 @@ class MaterialCard extends StatelessWidget {
               ],
             ),
             if (subtitle.isNotEmpty)
-              Text(subtitle, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(subtitle, style: TextStyle(fontSize: 13, color: muted)),
+              ),
             if (item.deadline != null) ...[
               const SizedBox(height: 8),
-              Chip(
-                avatar: Icon(Icons.timer_outlined, size: 18, color: deadlineColor(item.deadline!)),
-                label: Text('Срок сдачи: ${_fmt.format(item.deadline!)}'),
-                side: BorderSide(color: deadlineColor(item.deadline!)),
-                visualDensity: VisualDensity.compact,
+              AppBadge(
+                'Срок сдачи: ${_fmt.format(item.deadline!)}',
+                tone: deadlineTone(item.deadline!),
+                icon: Icons.timer_outlined,
               ),
             ],
             if (item.description.isNotEmpty) ...[
@@ -352,21 +575,35 @@ class MaterialCard extends StatelessWidget {
               Text(item.description, style: Theme.of(context).textTheme.bodyMedium),
             ],
             for (final f in item.files)
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                dense: true,
-                leading: Icon(Icons.insert_drive_file_outlined, color: Theme.of(context).colorScheme.primary),
-                title: Text(f.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodyMedium),
-                subtitle: Text('${(f.size / 1024 / 1024).toStringAsFixed(1)} МБ', style: Theme.of(context).textTheme.bodySmall),
-                trailing: const Icon(Icons.download),
-                onTap: () => launchUrl(Uri.parse(f.url), mode: LaunchMode.externalApplication),
+              InkWell(
+                onTap: () => openFile(f.url),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 48),
+                  child: Row(
+                    children: [
+                      Icon(Icons.insert_drive_file_outlined, color: appAccentColor(context)),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(f.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodyMedium),
+                            Text(sizeText(f.size), style: TextStyle(fontSize: 12, color: muted)),
+                          ],
+                        ),
+                      ),
+                      Icon(Icons.download_outlined, color: muted),
+                    ],
+                  ),
+                ),
               ),
             if (item.createdAt != null)
               Padding(
                 padding: const EdgeInsets.only(top: 6),
                 child: Text(
                   '${_fmt.format(item.createdAt!)}${item.edited ? ' · изменено' : ''}',
-                  style: Theme.of(context).textTheme.bodySmall,
+                  style: TextStyle(fontSize: 12, color: muted),
                 ),
               ),
           ],

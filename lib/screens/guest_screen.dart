@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
-import '../services/settings_service.dart'; // ✅ Импорт для смены темы
+import '../widgets/app_ui.dart';
+import '../services/settings_service.dart';
 import 'institute_screen.dart';
 import 'admission_screen.dart';
 import 'staff_screen.dart';
@@ -10,24 +11,27 @@ import 'indoor_map_screen.dart';
 class GuestScreen extends StatelessWidget {
   const GuestScreen({super.key});
 
+  void _open(BuildContext context, Widget screen) {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+  }
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return ListenableBuilder(
-      listenable: SettingsService.instance, // ✅ Слушаем смену темы
+      listenable: SettingsService.instance, // слушаем смену темы
       builder: (context, _) {
+        final theme = Theme.of(context);
         final isDark = theme.brightness == Brightness.dark;
 
         return Scaffold(
           appBar: AppBar(
             leading: IconButton(
               icon: const Icon(Icons.arrow_back_ios_new, size: 18),
+              tooltip: 'Назад',
               onPressed: () => Navigator.pop(context),
             ),
             title: const Text('Гостевой режим'),
             actions: [
-              // ✅ Кнопка переключения темы
               IconButton(
                 icon: Icon(
                   isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
@@ -42,84 +46,101 @@ class GuestScreen extends StatelessWidget {
               ),
             ],
           ),
-          backgroundColor: theme.scaffoldBackgroundColor, // ✅ Динамический фон
+          backgroundColor: theme.scaffoldBackgroundColor,
           body: ListView(
             padding: const EdgeInsets.all(AppTheme.s16),
             children: [
-              const SizedBox(height: AppTheme.s8),
+              // Пояснение, что именно ограничено в гостевом режиме
               Container(
-                padding: const EdgeInsets.all(AppTheme.s16),
+                padding: const EdgeInsets.all(AppTheme.s12),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withValues(alpha: isDark ? 0.2 : 0.1),
-                  borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-                  border: Border.all(
-                    color: theme.colorScheme.primary.withValues(alpha: 0.3),
-                  ),
+                  color: appAccentSoftColor(context),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
                   children: [
-                    Icon(
-                      Icons.info_outline,
-                      color: theme.colorScheme.primary,
-                      size: 24,
-                    ),
+                    Icon(Icons.info_outline, color: appAccentColor(context), size: 22),
                     const SizedBox(width: AppTheme.s12),
                     Expanded(
                       child: Text(
-                        'Вы в режиме гостя. Часть разделов доступна только авторизованным студентам.',
-                        style: theme.textTheme.bodyMedium?.copyWith(
+                        'Расписание, зачётка и задания доступны после входа',
+                        style: TextStyle(
                           fontSize: 13,
-                          color: theme.colorScheme.primary,
+                          color: appAccentColor(context),
                         ),
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: AppTheme.s24),
-              Text('ДОСТУПНО ГОСТЯМ', style: theme.textTheme.labelSmall),
-              const SizedBox(height: AppTheme.s8),
-              Container(
-                decoration: BoxDecoration(
-                  color: theme.cardColor, // ✅ Динамический цвет карточки
-                  borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-                  boxShadow: AppTheme.shadowSoft,
-                ),
+              const AppSectionLabel('Доступно гостям'),
+              AppCard(
+                padding: EdgeInsets.zero,
                 child: Column(
                   children: [
-                    _GuestTile(
-                      icon: Icons.account_balance,
-                      label: 'Об институте',
+                    AppListRow(
+                      icon: Icons.account_balance_outlined,
+                      title: 'Об институте',
                       subtitle: 'История, направления, кафедры',
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const InstituteScreen())),
+                      onTap: () => _open(context, const InstituteScreen()),
                     ),
-                    Divider(indent: 72, endIndent: 16, color: theme.dividerColor),
-                    _GuestTile(
+                    const Divider(height: 1, indent: 64),
+                    AppListRow(
                       icon: Icons.school_outlined,
-                      label: 'Поступающим',
+                      title: 'Поступающим',
                       subtitle: 'Бакалавриат и магистратура',
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdmissionScreen())),
+                      onTap: () => _open(context, const AdmissionScreen()),
                     ),
-                    Divider(indent: 72, endIndent: 16, color: theme.dividerColor),
-                    _GuestTile(
+                    const Divider(height: 1, indent: 64),
+                    AppListRow(
                       icon: Icons.people_outline,
-                      label: 'Сотрудники института',
+                      title: 'Сотрудники института',
                       subtitle: 'Руководство и преподаватели',
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StaffScreen())),
+                      onTap: () => _open(context, const StaffScreen()),
                     ),
-                    Divider(indent: 72, endIndent: 16, color: theme.dividerColor),
-                    _GuestTile(
+                    const Divider(height: 1, indent: 64),
+                    AppListRow(
                       icon: Icons.workspace_premium_outlined,
-                      label: 'Профсоюз СВФУ',
+                      title: 'Профсоюз СВФУ',
                       subtitle: 'Студенческий профсоюз',
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfkomScreen())),
+                      onTap: () => _open(context, const ProfkomScreen()),
                     ),
-                    Divider(indent: 72, endIndent: 16, color: theme.dividerColor),
-                    _GuestTile(
+                    const Divider(height: 1, indent: 64),
+                    AppListRow(
                       icon: Icons.map_outlined,
-                      label: 'Карта корпуса',
+                      title: 'Карта корпуса',
                       subtitle: 'Навигация по этажам ИМИ',
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const IndoorMapScreen())),
+                      onTap: () => _open(context, const IndoorMapScreen()),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppTheme.s16),
+              // Приглашение войти
+              AppCard(
+                padding: const EdgeInsets.all(AppTheme.s16),
+                child: Column(
+                  children: [
+                    Icon(Icons.lock_outline, size: 28, color: appAccentColor(context)),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Больше возможностей после входа',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Расписание, оценки, задания и события',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 13, color: appMutedColor(context)),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Войти'),
+                      ),
                     ),
                   ],
                 ),
@@ -127,11 +148,8 @@ class GuestScreen extends StatelessWidget {
               const SizedBox(height: AppTheme.s24),
               Center(
                 child: Text(
-                  '© СВФУ им. М.К. Амосова',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: theme.disabledColor,
-                  ),
+                  '© СВФУ им. М.К. Аммосова',
+                  style: TextStyle(fontSize: 11, color: appMutedColor(context)),
                 ),
               ),
               const SizedBox(height: AppTheme.s16),
@@ -139,57 +157,6 @@ class GuestScreen extends StatelessWidget {
           ),
         );
       },
-    );
-  }
-}
-
-class _GuestTile extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String subtitle;
-  final VoidCallback onTap;
-
-  const _GuestTile({
-    required this.icon,
-    required this.label,
-    required this.subtitle,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return InkWell(
-      borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: AppTheme.s16, vertical: AppTheme.s12),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(AppTheme.radiusSm),
-              ),
-              child: Icon(icon, color: theme.colorScheme.primary, size: 22),
-            ),
-            const SizedBox(width: AppTheme.s12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(label, style: theme.textTheme.titleMedium),
-                  const SizedBox(height: 2),
-                  Text(subtitle, style: theme.textTheme.bodySmall),
-                ],
-              ),
-            ),
-            Icon(Icons.chevron_right, color: theme.disabledColor, size: 20),
-          ],
-        ),
-      ),
     );
   }
 }

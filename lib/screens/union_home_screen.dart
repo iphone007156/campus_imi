@@ -7,6 +7,7 @@ import '../models/event_model.dart';
 import '../models/user_model.dart';
 import '../services/event_service.dart';
 import '../services/user_service.dart';
+import '../widgets/app_ui.dart';
 import '../widgets/user_avatar.dart';
 import 'add_event_screen.dart';
 import 'event_detail_screen.dart';
@@ -108,47 +109,21 @@ class _UnionHomeScreenState extends State<UnionHomeScreen> {
           ),
           if (_userDeptId != null)
             SliverToBoxAdapter(
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).cardColor,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Theme.of(context).dividerColor),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      _showOnlyMyDept ? 'Только мое подразделение' : 'Все мероприятия',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Theme.of(context).textTheme.bodyLarge?.color,
-                      ),
-                    ),
-                    Switch(
-                      value: _showOnlyMyDept,
-                      onChanged: (v) => setState(() => _showOnlyMyDept = v),
-                      activeColor: Theme.of(context).colorScheme.primary,
-                    ),
-                  ],
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: AppChip(
+                    label: 'Моё подразделение',
+                    selected: _showOnlyMyDept,
+                    onTap: () => setState(() => _showOnlyMyDept = !_showOnlyMyDept),
+                  ),
                 ),
               ),
             ),
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(AppTheme.s16, AppTheme.s20, AppTheme.s16, AppTheme.s8),
-            sliver: SliverToBoxAdapter(
-              child: Text(
-                'МЕРОПРИЯТИЯ',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: Theme.of(context).textTheme.bodySmall?.color,
-                  letterSpacing: 1.0,
-                ),
-              ),
-            ),
+            padding: const EdgeInsets.fromLTRB(AppTheme.s16, 0, AppTheme.s16, 0),
+            sliver: const SliverToBoxAdapter(child: AppSectionLabel('Мероприятия')),
           ),
           StreamBuilder<List<Event>>(
             stream: _eventService.getEvents(),
@@ -157,7 +132,7 @@ class _UnionHomeScreenState extends State<UnionHomeScreen> {
                 return const SliverFillRemaining(child: Center(child: CircularProgressIndicator()));
               }
               if (snapshot.hasError) {
-                return SliverFillRemaining(child: Center(child: Text('Ошибка: ${snapshot.error}')));
+                return SliverFillRemaining(hasScrollBody: false, child: AppErrorState(onRetry: () => setState(() {})));
               }
 
               var events = snapshot.data ?? [];
@@ -167,26 +142,14 @@ class _UnionHomeScreenState extends State<UnionHomeScreen> {
 
               if (events.isEmpty) {
                 return SliverFillRemaining(
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.event_busy_outlined, size: 48, color: Theme.of(context).textTheme.bodySmall?.color),
-                        const SizedBox(height: 16),
-                        Text(
-                          _showOnlyMyDept ? 'Мероприятий для вашего подразделения пока нет' : 'Мероприятий пока нет',
-                          style: TextStyle(fontSize: 16, color: Theme.of(context).textTheme.bodySmall?.color),
-                          textAlign: TextAlign.center,
-                        ),
-                        if (_showOnlyMyDept) ...[
-                          const SizedBox(height: 8),
-                          TextButton(
-                            onPressed: () => setState(() => _showOnlyMyDept = false),
-                            child: const Text('Показать все мероприятия'),
-                          ),
-                        ],
-                      ],
-                    ),
+                  hasScrollBody: false,
+                  child: AppEmptyState(
+                    icon: Icons.event_busy_outlined,
+                    title: _showOnlyMyDept
+                        ? 'Мероприятий для вашего подразделения пока нет'
+                        : 'Мероприятий пока нет',
+                    actionLabel: _showOnlyMyDept ? 'Показать все мероприятия' : null,
+                    onAction: _showOnlyMyDept ? () => setState(() => _showOnlyMyDept = false) : null,
                   ),
                 );
               }
@@ -251,13 +214,8 @@ class _UserProfileCard extends StatelessWidget {
       margin: const EdgeInsets.all(AppTheme.s16),
       padding: const EdgeInsets.all(AppTheme.s20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppTheme.primaryNavy, Color(0xFF2A4A7F)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(AppTheme.radiusLg),
-        boxShadow: AppTheme.shadowSoft,
+        color: AppTheme.primaryNavy,
+        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
       ),
       child: Column(
         children: [
@@ -329,9 +287,9 @@ class _EventCard extends StatelessWidget {
     if (event.imageUrl.isNotEmpty) {
       return Image.network(
         event.imageUrl,
-        fit: BoxFit.contain, // ✅ Не обрезаем
-        width: 100,
-        height: 100,
+        fit: BoxFit.cover,
+        width: 84,
+        height: 84,
         cacheWidth: 200,
         errorBuilder: (_, __, ___) => _buildBase64OrPlaceholder(),
       );
@@ -344,9 +302,9 @@ class _EventCard extends StatelessWidget {
       try {
         return Image.memory(
           base64Decode(event.imageBase64),
-          fit: BoxFit.contain, // ✅ Не обрезаем
-          width: 100,
-          height: 100,
+          fit: BoxFit.cover,
+          width: 84,
+          height: 84,
           errorBuilder: (_, __, ___) => _placeholder(),
         );
       } catch (_) {}
@@ -356,95 +314,68 @@ class _EventCard extends StatelessWidget {
 
   Widget _placeholder() {
     return Container(
-      width: 100,
-      height: 100,
-      color: AppTheme.lightBlue,
-      child: const Icon(Icons.event, color: AppTheme.accentBlue, size: 40),
+      width: 84,
+      height: 84,
+      color: AppTheme.accentSoft,
+      child: const Icon(Icons.event_outlined, color: AppTheme.primaryNavy, size: 32),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: AppTheme.s16, vertical: 6),
-      decoration: BoxDecoration(color: Theme.of(context).cardColor, borderRadius: BorderRadius.circular(AppTheme.radiusMd), boxShadow: AppTheme.shadowSoft),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(AppTheme.s12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(AppTheme.radiusSm),
-                  child: SizedBox(width: 100, height: 100, child: _buildEventImage()),
-                ),
-                const SizedBox(width: AppTheme.s16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+    final muted = appMutedColor(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppTheme.s16, vertical: 5),
+      child: AppCard(
+        onTap: onTap,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: SizedBox(width: 84, height: 84, child: _buildEventImage()),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    event.title,
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${event.date} · ${event.time}',
+                    style: TextStyle(fontSize: 12, color: muted),
+                  ),
+                  if (event.location.isNotEmpty)
+                    Text(
+                      event.location,
+                      style: TextStyle(fontSize: 12, color: muted),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      Row(
-                        children: [
-                          Expanded(child: Text(event.title, style: Theme.of(context).textTheme.titleMedium, maxLines: 2, overflow: TextOverflow.ellipsis)),
-                          if (event.finalized)
-                            Container(
-                              margin: const EdgeInsets.only(left: 4),
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(color: Colors.green.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(AppTheme.radiusSm)),
-                              child: const Text('Завершено', style: TextStyle(fontSize: 9, color: Colors.green, fontWeight: FontWeight.w700)),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: AppTheme.s4),
-                      Row(
-                        children: [
-                          Icon(Icons.calendar_today, size: 12, color: Theme.of(context).textTheme.bodySmall?.color),
-                          const SizedBox(width: 4),
-                          Text(event.date, style: Theme.of(context).textTheme.bodySmall),
-                          const SizedBox(width: 8),
-                          Icon(Icons.access_time, size: 12, color: Theme.of(context).textTheme.bodySmall?.color),
-                          const SizedBox(width: 4),
-                          Text(event.time, style: Theme.of(context).textTheme.bodySmall),
-                        ],
-                      ),
-                      const SizedBox(height: AppTheme.s4),
-                      Row(
-                        children: [
-                          Icon(Icons.location_on, size: 12, color: Theme.of(context).textTheme.bodySmall?.color),
-                          const SizedBox(width: 4),
-                          Expanded(child: Text(event.location, style: Theme.of(context).textTheme.bodySmall, overflow: TextOverflow.ellipsis)),
-                        ],
-                      ),
-                      const SizedBox(height: AppTheme.s8),
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(color: AppTheme.gold.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(AppTheme.radiusSm)),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.star, color: AppTheme.gold, size: 12),
-                                const SizedBox(width: 3),
-                                Text('+${event.points}', style: const TextStyle(color: AppTheme.gold, fontSize: 11, fontWeight: FontWeight.w700)),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text('${event.participants.length} участ.', style: Theme.of(context).textTheme.bodySmall),
-                        ],
+                      if (event.finalized) const AppBadge('Завершено', tone: AppTone.success),
+                      AppBadge('+${event.points} баллов', tone: AppTone.warning, icon: Icons.star),
+                      Text(
+                        '${event.participants.length} уч.',
+                        style: TextStyle(fontSize: 12, color: muted),
                       ),
                     ],
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );

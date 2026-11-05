@@ -313,9 +313,12 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                       updates['groupRole'] = 'student';
                     }
 
+                    // Глобальную роль меняем только при выдаче/снятии админа.
+                    // Иначе «активист» молча сбрасывался бы до «студента».
+                    final globalRole = (user['role'] ?? 'student').toString();
                     if (currentRoles.contains(GroupRole.admin)) {
                       updates['role'] = 'admin';
-                    } else {
+                    } else if (globalRole == 'admin') {
                       updates['role'] = 'student';
                     }
 

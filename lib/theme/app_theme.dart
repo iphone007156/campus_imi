@@ -10,16 +10,27 @@ class AppTheme {
   static const Color backgroundGray = Color(0xFFF7F9FC);
   static const Color cardWhite = Color(0xFFFFFFFF);
   static const Color textDark = Color(0xFF1C2B3A);
-  static const Color textMuted = Color(0xFF7A92A8);
+  static const Color textMuted = Color(0xFF56657F); // контраст не ниже 4,5:1 на светлом фоне
   static const Color gold = Color(0xFFB8922A);
   static const Color divider = Color(0xFFDDE6EF);
+
+  // ── Семантические цвета нового дизайна ─────────────
+  static const Color accentSoft = Color(0xFFE6EBF8);
+  static const Color accentSoftDark = Color(0xFF22305E);
+  static const Color accentOnDark = Color(0xFF8EA4F0);
+  static const Color success = Color(0xFF1B6E45);
+  static const Color successSoft = Color(0xFFE1F3E9);
+  static const Color warning = Color(0xFF8A5A00);
+  static const Color warningSoft = Color(0xFFFBEFD5);
+  static const Color danger = Color(0xFFB3261E);
+  static const Color dangerSoft = Color(0xFFFBE7E4);
 
   // ── Палитра (Тёмная) ───────────────────────────────
   static const Color darkBg = Color(0xFF121212);
   static const Color darkCard = Color(0xFF1E1E1E);
   static const Color darkSurface = Color(0xFF2C2C2C);
   static const Color darkText = Color(0xFFE8E8E8);
-  static const Color darkTextMuted = Color(0xFF9E9E9E);
+  static const Color darkTextMuted = Color(0xFFA3AEC7);
   static const Color darkDivider = Color(0xFF333333);
 
   // ── Радиусы ────────────────────────────────────────
@@ -183,6 +194,31 @@ class AppTheme {
           fontWeight: FontWeight.w700,
         ),
         dividerColor: Colors.transparent,
+      ),
+
+      // ✅ Нижняя навигация нового дизайна
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: card,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        height: 64,
+        indicatorColor: isDark ? accentSoftDark : accentSoft,
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          final selected = states.contains(WidgetState.selected);
+          return GoogleFonts.manrope(
+            fontSize: 11,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+            color: selected ? (isDark ? accentOnDark : primaryNavy) : muted,
+          );
+        }),
+        iconTheme: WidgetStateProperty.resolveWith((states) {
+          final selected = states.contains(WidgetState.selected);
+          return IconThemeData(
+            size: 24,
+            color: selected ? (isDark ? accentOnDark : primaryNavy) : muted,
+          );
+        }),
       ),
 
       dividerTheme: DividerThemeData(color: div, thickness: 1, space: 1),

@@ -135,12 +135,50 @@ class GroupRepo {
   }
 
   Future<void> sendMessage(String groupId, String text) {
+    final clean = text.trim();
+    if (clean.isEmpty) return Future.value();
     return _db.collection('groups/$groupId/chat').add({
       'authorId': uid,
       'authorName': _name,
-      'text': text.trim(),
+      'text': clean.length > 1000 ? clean.substring(0, 1000) : clean,
       'createdAt': FieldValue.serverTimestamp(),
     });
+  }
+
+  /// Жалоба на сообщение. Попадает в коллекцию `reports`, её читают администраторы.
+  Future<void> reportMessage({
+    required String groupId,
+    required ChatMessage message,
+    required String reason,
+  }) {
+    final text = message.text;
+    return _db.collection('reports').add({
+      'reporterId': uid,
+      'groupId': groupId,
+      'messageId': message.id,
+      'authorId': message.authorId,
+      'text': text.length > 500 ? text.substring(0, 500) : text,
+      'reason': reason,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// Идентификаторы авторов, которых заблокировал текущий пользователь.
+  Stream<Set<String>> blockedAuthors() {
+    return _db
+        .collection('users/$uid/blocked')
+        .snapshots()
+        .map((s) => s.docs.map((d) => d.id).toSet());
+  }
+
+  Future<void> blockAuthor(String authorId) {
+    return _db
+        .doc('users/$uid/blocked/$authorId')
+        .set({'createdAt': FieldValue.serverTimestamp()});
+  }
+
+  Future<void> unblockAuthor(String authorId) {
+    return _db.doc('users/$uid/blocked/$authorId').delete();
   }
 
   Future<void> deleteMessage(String groupId, String id) =>

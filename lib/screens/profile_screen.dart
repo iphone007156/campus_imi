@@ -5,13 +5,16 @@ import 'package:onesignal_flutter/onesignal_flutter.dart';
 import 'dart:convert';
 import 'dart:async';
 import '../theme/app_theme.dart';
+import '../widgets/app_ui.dart';
 import 'edit_profile_screen.dart';
 import 'admin_home_screen.dart';
 import 'notification_settings_screen.dart';
 import 'privacy_policy_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key});
+  /// true — экран внутри нижней навигации (без стрелки «назад»).
+  final bool embedded;
+  const ProfileScreen({super.key, this.embedded = false});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -103,74 +106,152 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _showDeleteAccountDialog(BuildContext context) {
-    showDialog(
+  /// Удаление аккаунта: подтверждаем паролем (Firebase требует свежий вход),
+  /// затем удаляем данные профиля и сам аккаунт.
+  Future<void> _showDeleteAccountDialog(BuildContext context) async {
+    final controller = TextEditingController();
+    final password = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Удалить аккаунт?'),
-        content: const Text(
-            'Все ваши данные будут удалены в течение 30 дней. '
-                'Это действие необратимо.'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Профиль и ваши данные будут удалены без возможности '
+                  'восстановления. Чтобы подтвердить, введите пароль.',
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              obscureText: true,
+              autofocus: true,
+              decoration: const InputDecoration(labelText: 'Пароль'),
+            ),
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Отмена'),
           ),
           TextButton(
-            onPressed: () async {
-              Navigator.pop(ctx);
-              try {
-                final user = FirebaseAuth.instance.currentUser;
-                if (user == null) return;
-
-                await FirebaseFirestore.instance
-                    .collection('users')
-                    .doc(user.uid)
-                    .delete();
-
-                try {
-                  OneSignal.logout();
-                } catch (_) {}
-
-                await user.delete();
-
-                if (context.mounted) {
-                  Navigator.of(context).popUntil((route) => route.isFirst);
-                }
-              } on FirebaseAuthException catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Ошибка удаления: ${e.message ?? e.code}. '
-                            'Попробуйте войти заново и повторить.',
-                      ),
-                    ),
-                  );
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Ошибка: $e')),
-                  );
-                }
-              }
-            },
-            child: const Text('Удалить', style: TextStyle(color: Colors.red)),
+            onPressed: () => Navigator.pop(ctx, controller.text),
+            child: const Text(
+              'Удалить',
+              style: TextStyle(color: AppTheme.danger),
+            ),
           ),
         ],
       ),
     );
+    if (password == null || password.isEmpty) return;
+    if (!context.mounted) return;
+    await _deleteAccount(context, password);
+  }
+
+  Future<void> _deleteAccount(BuildContext context, String password) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final user = FirebaseAuth.instance.currentUser;
+    final email = user?.email;
+    if (user == null || email == null) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Не удалось определить аккаунт. Войдите заново.')),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    var progressOpen = true;
+    void closeProgress() {
+      if (progressOpen) {
+        progressOpen = false;
+        navigator.pop();
+      }
+    }
+
+    try {
+      // 1. Подтверждение личности. Без него удаление аккаунта может не пройти
+      // уже после того, как профиль стёрт, и пользователь останется «без профиля».
+      final credential =
+      EmailAuthProvider.credential(email: email, password: password);
+      await user.reauthenticateWithCredential(credential);
+
+      // 2. Данные профиля.
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).delete();
+
+      // 3. Push-подписка.
+      try {
+        OneSignal.logout();
+      } catch (_) {}
+
+      // 4. Сам аккаунт (одна повторная попытка при сбое сети).
+      try {
+        await user.delete();
+      } on FirebaseAuthException catch (e) {
+        if (e.code == 'network-request-failed') {
+          await user.delete();
+        } else {
+          rethrow;
+        }
+      }
+
+      closeProgress();
+      navigator.popUntil((route) => route.isFirst);
+    } on FirebaseAuthException catch (e) {
+      closeProgress();
+      String message;
+      switch (e.code) {
+        case 'wrong-password':
+        case 'invalid-credential':
+          message = 'Неверный пароль';
+          break;
+        case 'too-many-requests':
+          message = 'Слишком много попыток. Попробуйте позже.';
+          break;
+        case 'network-request-failed':
+          message = 'Нет подключения к интернету';
+          break;
+        default:
+          message = 'Не удалось удалить аккаунт (${e.code}). Войдите заново и повторите.';
+      }
+      messenger.showSnackBar(SnackBar(content: Text(message)));
+    } on FirebaseException {
+      closeProgress();
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Не удалось удалить данные профиля. Попробуйте позже.')),
+      );
+    } catch (_) {
+      closeProgress();
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Не удалось удалить аккаунт. Попробуйте позже.')),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final photoProvider = _getImageProvider(_userData);
     final isAdmin = _userData['role'] == 'admin';
+    final theme = Theme.of(context);
+    final headerBg = theme.appBarTheme.backgroundColor ?? AppTheme.primaryNavy;
+    final headerFg = theme.appBarTheme.foregroundColor ?? Colors.white;
+    final name = (_userData['name'] ?? 'Студент').toString();
+    final group = (_userData['group'] ?? '').toString();
 
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(
+        automaticallyImplyLeading: !widget.embedded,
+        leading: widget.embedded
+            ? null
+            : IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, size: 18),
           onPressed: () => Navigator.pop(context),
         ),
@@ -178,231 +259,185 @@ class _ProfileScreenState extends State<ProfileScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.edit_outlined),
+            tooltip: 'Редактировать профиль',
             onPressed: _isLoading ? null : _navigateToEditProfile,
           ),
         ],
       ),
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : ListView(
-        padding: const EdgeInsets.all(AppTheme.s16),
+        padding: EdgeInsets.zero,
         children: [
           // ─── ШАПКА ПРОФИЛЯ ───────────────────────────────
-          Center(
+          Container(
+            color: headerBg,
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
             child: Column(
               children: [
                 Container(
-                  width: 96,
-                  height: 96,
+                  width: 88,
+                  height: 88,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Theme.of(context)
-                        .colorScheme
-                        .primary
-                        .withValues(alpha: 0.1),
-                    border: Border.all(
-                        color: Theme.of(context).cardColor, width: 4),
+                    color: Colors.white.withValues(alpha: 0.15),
+                    border: Border.all(color: Colors.white, width: 3),
                     image: photoProvider != null
-                        ? DecorationImage(
-                        image: photoProvider, fit: BoxFit.cover)
+                        ? DecorationImage(image: photoProvider, fit: BoxFit.cover)
                         : null,
-                    boxShadow: AppTheme.shadowSoft,
                   ),
                   child: photoProvider == null
-                      ? Icon(Icons.person,
-                      size: 48,
-                      color: Theme.of(context).colorScheme.primary)
+                      ? Icon(Icons.person, size: 44, color: headerFg)
                       : null,
                 ),
-                const SizedBox(height: AppTheme.s16),
+                const SizedBox(height: 12),
                 Text(
-                  _userData['name'] ?? 'Студент',
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                const SizedBox(height: AppTheme.s8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .primary
-                        .withValues(alpha: 0.1),
-                    borderRadius:
-                    BorderRadius.circular(AppTheme.radiusPill),
+                  name,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: headerFg,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
                   ),
-                  child: Text(
-                    _userData['group'] ?? 'Группа',
-                    style: TextStyle(
-                        color: Theme.of(context).colorScheme.primary,
+                ),
+                if (group.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+                    ),
+                    child: Text(
+                      group,
+                      style: TextStyle(
+                        color: headerFg,
                         fontSize: 13,
-                        fontWeight: FontWeight.w600),
-                  ),
-                ),
-                const SizedBox(height: AppTheme.s24),
-              ],
-            ),
-          ),
-
-          // ─── БЛОК НАСТРОЕК И ПРАВОВОЙ ИНФОРМАЦИИ ────────
-          Container(
-            decoration: BoxDecoration(
-              color: Theme.of(context).cardColor,
-              borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-              boxShadow: AppTheme.shadowSoft,
-            ),
-            child: Column(
-              children: [
-                // Уведомления
-                ListTile(
-                  leading: Icon(Icons.notifications_outlined,
-                      color: Theme.of(context).colorScheme.primary),
-                  title: const Text('Уведомления'),
-                  trailing: const Icon(Icons.chevron_right, size: 20),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) =>
-                          const NotificationSettingsScreen()),
-                    );
-                  },
-                ),
-                const Divider(height: 1, indent: 56, endIndent: 16),
-
-                // Политика конфиденциальности
-                ListTile(
-                  leading: Icon(Icons.privacy_tip_outlined,
-                      color: Theme.of(context).colorScheme.primary),
-                  title: const Text('Политика конфиденциальности'),
-                  subtitle: const Text(
-                    'Согласие на обработку данных получено',
-                    style: TextStyle(fontSize: 12, color: Colors.green),
-                  ),
-                  trailing: const Icon(Icons.chevron_right, size: 20),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const PrivacyPolicyScreen()),
-                    );
-                  },
-                ),
-
-                // Панель управления (только для админа)
-                if (isAdmin) ...[
-                  const Divider(height: 1, indent: 56, endIndent: 16),
-                  ListTile(
-                    leading: Icon(Icons.admin_panel_settings_outlined,
-                        color: Theme.of(context).colorScheme.primary),
-                    title: const Text('Панель управления'),
-                    trailing: const Icon(Icons.chevron_right, size: 20),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => const AdminHomeScreen()),
-                      );
-                    },
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ],
-
-                const Divider(height: 1, indent: 56, endIndent: 16),
-
-                // Выйти
-                ListTile(
-                  leading:
-                  const Icon(Icons.logout, color: Colors.redAccent),
-                  title: const Text(
-                    'Выйти из аккаунта',
-                    style: TextStyle(color: Colors.redAccent),
-                  ),
-                  onTap: () => _showLogoutDialog(context),
-                ),
               ],
             ),
           ),
 
-          const SizedBox(height: 32),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ─── УЧЕБА ──────────────────────────────────
+                const AppSectionLabel('Учёба'),
+                _InfoCard(items: [
+                  _InfoRow(Icons.school_outlined, 'Подразделение',
+                      (_userData['institute'] ?? 'ИМИ СВФУ').toString()),
+                  _InfoRow(Icons.groups_outlined, 'Группа',
+                      (_userData['group'] ?? '—').toString()),
+                  _InfoRow(Icons.layers_outlined, 'Курс',
+                      (_userData['course'] ?? '—').toString()),
+                ]),
 
-          // ─── УЧЕБА ────────────────────────────────────────
-          _InfoSection(
-            title: 'УЧЕБА',
-            items: [
-              _InfoRow(Icons.school_outlined, 'Подразделение',
-                  _userData['institute'] ?? 'ИМИ СВФУ'),
-              _InfoRow(Icons.groups_outlined, 'Группа',
-                  _userData['group'] ?? '---'),
-              _InfoRow(Icons.layers_outlined, 'Курс',
-                  _userData['course'] ?? '---'),
-            ],
-          ),
-          const SizedBox(height: AppTheme.s16),
+                // ─── КОНТАКТЫ ───────────────────────────────
+                const AppSectionLabel('Контакты'),
+                _InfoCard(items: [
+                  _InfoRow(Icons.email_outlined, 'Email',
+                      (_userData['email'] ?? '—').toString()),
+                  _InfoRow(Icons.phone_outlined, 'Телефон',
+                      (_userData['phone'] ?? '—').toString()),
+                ]),
 
-          // ─── КОНТАКТЫ ─────────────────────────────────────
-          _InfoSection(
-            title: 'КОНТАКТЫ',
-            items: [
-              _InfoRow(Icons.email_outlined, 'Email',
-                  _userData['email'] ?? '---'),
-              _InfoRow(Icons.phone_outlined, 'Телефон',
-                  _userData['phone'] ?? '---'),
-            ],
-          ),
-          const SizedBox(height: 32),
+                // ─── НАСТРОЙКИ ──────────────────────────────
+                const AppSectionLabel('Настройки'),
+                AppCard(
+                  padding: EdgeInsets.zero,
+                  child: Column(
+                    children: [
+                      AppListRow(
+                        icon: Icons.notifications_outlined,
+                        title: 'Уведомления',
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const NotificationSettingsScreen()),
+                        ),
+                      ),
+                      const Divider(height: 1, indent: 64),
+                      AppListRow(
+                        icon: Icons.privacy_tip_outlined,
+                        title: 'Конфиденциальность',
+                        subtitle: 'Согласие на обработку данных получено',
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const PrivacyPolicyScreen()),
+                        ),
+                      ),
+                      if (isAdmin) ...[
+                        const Divider(height: 1, indent: 64),
+                        AppListRow(
+                          icon: Icons.admin_panel_settings_outlined,
+                          title: 'Панель управления',
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const AdminHomeScreen()),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
 
-          // ─── УДАЛЕНИЕ АККАУНТА (в самом низу) ─────────────
-          Center(
-            child: TextButton(
-              onPressed: () => _showDeleteAccountDialog(context),
-              style: TextButton.styleFrom(
-                foregroundColor:
-                Theme.of(context).textTheme.bodySmall?.color,
-              ),
-              child: const Text(
-                'Удалить аккаунт',
-                style: TextStyle(
-                    fontSize: 13, decoration: TextDecoration.underline),
-              ),
+                // ─── АККАУНТ ────────────────────────────────
+                const AppSectionLabel('Аккаунт'),
+                AppCard(
+                  padding: EdgeInsets.zero,
+                  child: Column(
+                    children: [
+                      AppListRow(
+                        icon: Icons.logout,
+                        title: 'Выйти из аккаунта',
+                        tone: AppTone.neutral,
+                        onTap: () => _showLogoutDialog(context),
+                      ),
+                      const Divider(height: 1, indent: 64),
+                      AppListRow(
+                        icon: Icons.delete_outline,
+                        title: 'Удалить аккаунт',
+                        subtitle: 'Профиль и данные будут удалены безвозвратно',
+                        tone: AppTone.danger,
+                        onTap: () => _showDeleteAccountDialog(context),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: AppTheme.s24),
         ],
       ),
     );
   }
 }
 
-class _InfoSection extends StatelessWidget {
-  final String title;
+class _InfoCard extends StatelessWidget {
   final List<_InfoRow> items;
-  const _InfoSection({required this.title, required this.items});
+  const _InfoCard({required this.items});
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: Theme.of(context).textTheme.labelSmall),
-        const SizedBox(height: AppTheme.s8),
-        Container(
-          decoration: BoxDecoration(
-            color: Theme.of(context).cardColor,
-            borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-            boxShadow: AppTheme.shadowSoft,
-          ),
-          child: Column(
-            children: [
-              for (int i = 0; i < items.length; i++) ...[
-                items[i],
-                if (i < items.length - 1)
-                  const Divider(height: 1, indent: 56, endIndent: 16),
-              ],
-            ],
-          ),
-        ),
-      ],
+    return AppCard(
+      padding: EdgeInsets.zero,
+      child: Column(
+        children: [
+          for (int i = 0; i < items.length; i++) ...[
+            items[i],
+            if (i < items.length - 1) const Divider(height: 1, indent: 64),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -417,32 +452,24 @@ class _InfoRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(
-          horizontal: AppTheme.s16, vertical: AppTheme.s12),
+      padding: const EdgeInsets.symmetric(horizontal: AppTheme.s12, vertical: 10),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: Theme.of(context)
-                  .colorScheme
-                  .primary
-                  .withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(AppTheme.radiusSm),
-            ),
-            child: Icon(icon,
-                color: Theme.of(context).colorScheme.primary, size: 18),
-          ),
+          AppIconBox(icon, size: 40),
           const SizedBox(width: AppTheme.s12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: Theme.of(context).textTheme.bodySmall),
+                Text(
+                  label,
+                  style: TextStyle(fontSize: 12, color: appMutedColor(context)),
+                ),
                 const SizedBox(height: 2),
-                Text(value, style: Theme.of(context).textTheme.titleMedium),
+                Text(
+                  value,
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                ),
               ],
             ),
           ),

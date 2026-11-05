@@ -1,3 +1,4 @@
+import '../widgets/app_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -99,7 +100,7 @@ class _CalendarPlanScreenState extends State<CalendarPlanScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return Center(child: Text('Ошибка: ${snapshot.error}'));
+            return const AppErrorState();
           }
           final docs = snapshot.data?.docs ?? [];
           if (docs.isEmpty) {

@@ -3,9 +3,9 @@ import 'package:flutter/services.dart' show MissingPluginException;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../services/notification_service.dart';
 import '../services/settings_service.dart';
 import 'privacy_policy_screen.dart';
+import 'student_home_screen.dart'; // ✅ для fallback-навигации
 
 class OnboardingScreen extends StatefulWidget {
   final VoidCallback? onCompleted;
@@ -16,16 +16,32 @@ class OnboardingScreen extends StatefulWidget {
   State<OnboardingScreen> createState() => _OnboardingScreenState();
 }
 
-class _OnboardingScreenState extends State<OnboardingScreen> {
+class _OnboardingScreenState extends State<OnboardingScreen> with WidgetsBindingObserver {
   bool _notificationsGranted = false;
   bool _cameraGranted = false;
   bool _privacyChecked = false;
   bool _loading = true;
+  bool _finishing = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _checkCurrentPermissions();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// ✅ При возврате из системных настроек перепроверяем разрешения
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && !_finishing) {
+      _checkCurrentPermissions();
+    }
   }
 
   Future<void> _checkCurrentPermissions() async {
@@ -36,27 +52,28 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       setState(() {
         _notificationsGranted = notif;
         _cameraGranted = camera;
-        _loading = false;
       });
     } on MissingPluginException catch (e) {
       debugPrint('⚠️ [ONBOARDING] permission_handler недоступен: $e');
-      if (!mounted) return;
-      setState(() => _loading = false);
     } catch (e) {
       debugPrint('⚠️ [ONBOARDING] Ошибка проверки разрешений: $e');
-      if (!mounted) return;
-      setState(() => _loading = false);
+    } finally {
+      // ✅ ВСЕГДА сбрасываем флаг загрузки
+      if (mounted) setState(() => _loading = false);
     }
   }
 
   Future<void> _requestNotifications() async {
     try {
-      final status = await Permission.notification.request();
+      var status = await Permission.notification.status;
+      if (status.isPermanentlyDenied) {
+        await openAppSettings();
+        return;
+      }
+      status = await Permission.notification.request();
       if (!mounted) return;
       setState(() => _notificationsGranted = status.isGranted);
-      if (status.isGranted) {
-        await NotificationService.initialize();
-      }
+      // NotificationService уже инициализирован в main() — повторно НЕ вызываем
     } on MissingPluginException catch (e) {
       debugPrint('⚠️ [ONBOARDING] permission_handler недоступен: $e');
     } catch (e) {
@@ -66,7 +83,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   Future<void> _requestCamera() async {
     try {
-      final status = await Permission.camera.request();
+      var status = await Permission.camera.status;
+      if (status.isPermanentlyDenied) {
+        await openAppSettings();
+        return;
+      }
+      status = await Permission.camera.request();
       if (!mounted) return;
       setState(() => _cameraGranted = status.isGranted);
     } on MissingPluginException catch (e) {
@@ -76,13 +98,20 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     }
   }
 
-  bool get _allGranted =>
-      _notificationsGranted && _cameraGranted && _privacyChecked;
+  /// ✅ Камера НЕ обязательна — её можно выдать позже при смене аватара
+  bool get _canContinue => _notificationsGranted && _privacyChecked;
 
   Future<void> _finish() async {
-    await SettingsService.instance.setPrivacyAccepted(true);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('onboarding_completed', true);
+    if (_finishing) return;
+    setState(() => _finishing = true);
+
+    try {
+      await SettingsService.instance.setPrivacyAccepted(true);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('onboarding_completed', true);
+    } catch (e) {
+      debugPrint('⚠️ [ONBOARDING] Не удалось сохранить флаги: $e');
+    }
 
     if (!mounted) return;
 
@@ -91,16 +120,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       return;
     }
 
+    // ✅ Fallback: переходим на главный экран, а не на «вечный спиннер»
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const Scaffold(body: Center(child: CircularProgressIndicator()))),
+      MaterialPageRoute(builder: (_) => const StudentHomeScreen()),
           (route) => false,
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: _loading
             ? const Center(child: CircularProgressIndicator())
@@ -111,25 +143,23 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             children: [
               const SizedBox(height: 24),
               Center(
-                child: Icon(
-                  Icons.school_outlined,
-                  size: 80,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
+                child: Icon(Icons.school_outlined,
+                    size: 80, color: theme.colorScheme.primary),
               ),
               const SizedBox(height: 24),
-              Text(
-                'Привет! Давай всё настроим',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.headlineSmall,
-              ),
+              Text('Привет! Давай всё настроим',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.headlineSmall),
               const SizedBox(height: 8),
               Text(
-                'Чтобы приложение работало как надо, разреши доступ к следующим функциям.',
+                'Чтобы приложение работало как надо, разреши доступ к '
+                    'уведомлениям. Камеру можно выдать позже — она нужна '
+                    'только для смены аватара.',
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium,
+                style: theme.textTheme.bodyMedium,
               ),
               const SizedBox(height: 32),
+
               _PermissionCard(
                 icon: Icons.notifications_outlined,
                 title: 'Уведомления',
@@ -140,15 +170,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               const SizedBox(height: 12),
               _PermissionCard(
                 icon: Icons.camera_alt_outlined,
-                title: 'Камера',
+                title: 'Камера (необязательно)',
                 subtitle: 'Смена аватара профиля',
                 granted: _cameraGranted,
                 onRequest: _requestCamera,
               ),
               const SizedBox(height: 24),
+
               CheckboxListTile(
                 value: _privacyChecked,
-                onChanged: (v) => setState(() => _privacyChecked = v ?? false),
+                onChanged: (v) async {
+                  setState(() => _privacyChecked = v ?? false);
+                  if (v == true) {
+                    await SettingsService.instance.setPrivacyAccepted(true);
+                  }
+                },
                 controlAffinity: ListTileControlAffinity.leading,
                 contentPadding: EdgeInsets.zero,
                 title: Wrap(
@@ -159,17 +195,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         final accepted = await Navigator.push<bool>(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => const PrivacyPolicyScreen(showAcceptButton: true),
+                            builder: (_) =>
+                            const PrivacyPolicyScreen(showAcceptButton: true),
                           ),
                         );
                         if (accepted == true) {
                           setState(() => _privacyChecked = true);
+                          await SettingsService.instance.setPrivacyAccepted(true);
                         }
                       },
                       child: Text(
                         'политикой конфиденциальности',
                         style: TextStyle(
-                          color: Theme.of(context).colorScheme.primary,
+                          color: theme.colorScheme.primary,
                           decoration: TextDecoration.underline,
                         ),
                       ),
@@ -178,21 +216,40 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
+
+              // ✅ Кнопка «Продолжить» — активна при уведомлениях + политике
               ElevatedButton(
-                onPressed: _allGranted ? _finish : null,
+                onPressed: (_canContinue && !_finishing) ? _finish : null,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.primary,
+                  backgroundColor: theme.colorScheme.primary,
                   foregroundColor: Colors.white,
                   minimumSize: const Size.fromHeight(52),
                 ),
-                child: const Text('Продолжить'),
+                child: _finishing
+                    ? const SizedBox(
+                  width: 20, height: 20,
+                  child: CircularProgressIndicator(
+                      color: Colors.white, strokeWidth: 2),
+                )
+                    : const Text('Продолжить'),
               ),
-              if (!_allGranted)
+
+              // ✅ Всегда доступная кнопка «Пропустить» — защита от залипания
+              if (!_canContinue)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: TextButton(
+                    onPressed: _finishing ? null : _finish,
+                    child: const Text('Пропустить (настрою позже)'),
+                  ),
+                ),
+
+              if (!_notificationsGranted)
                 const Padding(
                   padding: EdgeInsets.only(top: 12),
                   child: Text(
-                    'Выдайте все разрешения и примите политику, чтобы продолжить',
+                    'Для продолжения нужно разрешить уведомления и принять политику',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 12, color: Colors.orange),
                   ),

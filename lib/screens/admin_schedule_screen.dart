@@ -1,3 +1,4 @@
+import '../widgets/app_ui.dart';
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../models/lesson.dart';
@@ -73,7 +74,7 @@ class _AdminScheduleScreenState extends State<AdminScheduleScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return Center(child: Text('Ошибка: ${snapshot.error}'));
+            return const AppErrorState();
           }
 
           final allLessons = snapshot.data ?? [];

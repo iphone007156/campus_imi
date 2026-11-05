@@ -10,7 +10,7 @@ import '../theme/app_theme.dart';
 
 class _S {
   static const title = 'Техническая поддержка';
-  static const tabNew = 'Новое';
+  static const tabNew = 'Новое обращение';
   static const tabMine = 'Мои';
   static const tabAll = 'Все';
   static const intro = 'Расскажи, что случилось, и мы ответим в приложении.';

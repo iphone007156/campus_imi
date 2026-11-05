@@ -8,6 +8,22 @@ import 'package:flutter/material.dart';
 
 import 'settings_service.dart';
 
+/// Одно напоминание о конкретной паре (с датой и временем начала).
+class LessonReminder {
+  final String key;
+  final String subject;
+  final String room;
+  final String time;
+  final DateTime start;
+  const LessonReminder({
+    required this.key,
+    required this.subject,
+    required this.room,
+    required this.time,
+    required this.start,
+  });
+}
+
 class NotificationService {
   static final FlutterLocalNotificationsPlugin _localPlugin =
   FlutterLocalNotificationsPlugin();
@@ -171,6 +187,66 @@ class NotificationService {
     }
 
     debugPrint('🔔 [NOTIF] Запланировано: $scheduled из ${lessons.length}');
+  }
+
+  /// Разовые напоминания за 10 минут до каждой пары из списка.
+  /// В отличие от старого метода учитывает чётность недели и не повторяет
+  /// пару каждую неделю. Для iOS ограничивает число уведомлений (лимит 64).
+  static Future<void> scheduleLessonReminderList(
+      List<LessonReminder> reminders) async {
+    await _localPlugin.cancelAll();
+    if (!SettingsService.instance.notificationsEnabled) return;
+    if (reminders.isEmpty) return;
+
+    final now = tz.TZDateTime.now(tz.local);
+    bool canScheduleExact = false;
+    final androidPlugin = _localPlugin
+        .resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    if (androidPlugin != null) {
+      canScheduleExact =
+          await androidPlugin.canScheduleExactNotifications() ?? false;
+    }
+
+    final sorted = List<LessonReminder>.from(reminders)
+      ..sort((a, b) => a.start.compareTo(b.start));
+
+    int scheduled = 0;
+    for (final r in sorted) {
+      if (scheduled >= 60) break;
+      try {
+        final reminderTime = tz.TZDateTime.from(r.start, tz.local)
+            .subtract(const Duration(minutes: 10));
+        if (reminderTime.isBefore(now)) continue;
+
+        await _localPlugin.zonedSchedule(
+          r.key.hashCode & 0x7fffffff,
+          'Скоро пара',
+          '${r.subject} · ${r.room} · ${r.time}',
+          reminderTime,
+          const NotificationDetails(
+            android: AndroidNotificationDetails(
+              'lesson_reminders',
+              'Напоминания о парах',
+              importance: Importance.high,
+              priority: Priority.high,
+            ),
+            iOS: DarwinNotificationDetails(
+              presentAlert: true,
+              presentBadge: true,
+              presentSound: true,
+            ),
+          ),
+          androidScheduleMode: canScheduleExact
+              ? AndroidScheduleMode.exactAllowWhileIdle
+              : AndroidScheduleMode.inexactAllowWhileIdle,
+        );
+        scheduled++;
+      } catch (e) {
+        debugPrint('🔔 [NOTIF] Ошибка напоминания "${r.subject}": $e');
+      }
+    }
+    debugPrint('🔔 [NOTIF] Запланировано напоминаний: $scheduled');
   }
 
   static Future<void> testNotification() async {
